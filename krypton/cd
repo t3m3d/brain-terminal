@@ -1,0 +1,7 @@
+cd : Cannot find path 'C:\Users\brian\Documents\GitHub\terk\krypton\d' because it does not exist.
+At line:1 char:5
++ & { cd d } d
++     ~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\Users\brian\...\terk\krypton\d:String) [Set-Location], ItemNotFoundException
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.SetLocationCommand
+ 
