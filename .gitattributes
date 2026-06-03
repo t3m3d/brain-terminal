@@ -1,2 +1,9 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Force LF on shell scripts — `* text=auto` lets git pick, which on
+# Windows still ends up CRLF in the working tree. The shebang line
+# breaks on Linux: `env: 'bash\r': No such file or directory`.
+*.sh        text eol=lf
+PKGBUILD    text eol=lf
+.gitignore  text eol=lf
