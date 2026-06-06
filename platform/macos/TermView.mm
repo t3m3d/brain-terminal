@@ -34,6 +34,11 @@ static NSColor* colorFromARGB(uint32_t c) {
     int        _cols;
     int        _rows;
     int        _scrollOffset;   // rows scrolled up from the live bottom (0 = bottom)
+    // Selection (in current-viewport row/col coordinates).
+    BOOL       _selecting;
+    BOOL       _hasSelection;
+    int        _selStartRow, _selStartCol;
+    int        _selEndRow,   _selEndCol;
     std::string _shell;
 }
 
@@ -145,7 +150,94 @@ static NSColor* colorFromARGB(uint32_t c) {
     _scrollOffset += lines;
     if (_scrollOffset < 0) _scrollOffset = 0;
     if (_scrollOffset > H) _scrollOffset = H;
+    _hasSelection = NO;               // selection is viewport-relative; drop it on scroll
     [self setNeedsDisplay:YES];
+}
+
+// ── Mouse selection ───────────────────────────────────────────────────
+- (void)cellForEvent:(NSEvent*)event row:(int*)row col:(int*)col {
+    NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
+    int r = (int)(p.y / _cellH);
+    int c = (int)(p.x / _cellW);
+    if (r < 0) r = 0;  if (r >= _rows) r = _rows - 1;
+    if (c < 0) c = 0;  if (c > _cols)  c = _cols;   // one past end = select to EOL
+    *row = r; *col = c;
+}
+
+- (void)mouseDown:(NSEvent*)event {
+    int r, c; [self cellForEvent:event row:&r col:&c];
+    _selStartRow = _selEndRow = r; _selStartCol = _selEndCol = c;
+    _selecting = YES; _hasSelection = NO;
+    [self setNeedsDisplay:YES];
+}
+- (void)mouseDragged:(NSEvent*)event {
+    if (!_selecting) return;
+    int r, c; [self cellForEvent:event row:&r col:&c];
+    _selEndRow = r; _selEndCol = c; _hasSelection = YES;
+    [self setNeedsDisplay:YES];
+}
+- (void)mouseUp:(NSEvent*)event { _selecting = NO; }
+
+- (void)normSelStart:(int*)sr col:(int*)sc end:(int*)er col:(int*)ec {
+    int aR=_selStartRow, aC=_selStartCol, bR=_selEndRow, bC=_selEndCol;
+    if (bR < aR || (bR == aR && bC < aC)) { int t; t=aR;aR=bR;bR=t; t=aC;aC=bC;bC=t; }
+    *sr=aR; *sc=aC; *er=bR; *ec=bC;
+}
+
+// Cells of visible row vr (history or live), matching drawRect's mapping.
+- (const std::vector<kterm::renderer::Cell>*)viewportRow:(int)vr {
+    const auto& grid = _term->grid();
+    int H = grid.historyLines();
+    int s = _scrollOffset; if (s < 0) s = 0; if (s > H) s = H;
+    int idx = (H - s) + vr;
+    if (idx < 0) return nullptr;
+    if (idx < H) return &grid.historyRow(idx);
+    int lr = idx - H;
+    const auto& live = grid.rows();
+    if (lr < 0 || lr >= (int)live.size()) return nullptr;
+    return &live[lr];
+}
+
+- (void)copySelection {
+    if (!_hasSelection || !_term) return;
+    int sr, sc, er, ec; [self normSelStart:&sr col:&sc end:&er col:&ec];
+    NSMutableString* out = [NSMutableString string];
+    for (int vr = sr; vr <= er; ++vr) {
+        const std::vector<kterm::renderer::Cell>* line = [self viewportRow:vr];
+        if (!line) continue;
+        int n  = (int)line->size();
+        int c0 = (vr == sr) ? sc : 0;
+        int c1 = (vr == er) ? ec : n;
+        if (c1 > n) c1 = n;
+        std::u32string u;
+        for (int c = c0; c < c1; ++c) u.push_back((char32_t)(*line)[c].ch);
+        while (!u.empty() && u.back() == U' ') u.pop_back();   // trim trailing spaces
+        NSString* rs = [[NSString alloc] initWithBytes:u.data()
+                                                length:u.size() * 4
+                                              encoding:NSUTF32LittleEndianStringEncoding];
+        if (rs) [out appendString:rs];
+        if (vr < er) [out appendString:@"\n"];
+    }
+    NSPasteboard* pb = [NSPasteboard generalPasteboard];
+    [pb clearContents];
+    [pb setString:out forType:NSPasteboardTypeString];
+}
+
+- (void)pasteClipboard {
+    if (!_pty) return;
+    NSString* str = [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString];
+    if (str.length == 0) return;
+    const char* u = [str UTF8String];
+    if (u) _pty->writeInput(std::string(u));
+}
+
+- (BOOL)performKeyEquivalent:(NSEvent*)event {
+    if (event.modifierFlags & NSEventModifierFlagCommand) {
+        NSString* ch = event.charactersIgnoringModifiers;
+        if ([ch isEqualToString:@"c"] && _hasSelection) { [self copySelection]; return YES; }
+        if ([ch isEqualToString:@"v"]) { [self pasteClipboard]; return YES; }
+    }
+    return [super performKeyEquivalent:event];
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
@@ -207,6 +299,20 @@ static NSColor* colorFromARGB(uint32_t c) {
         }
     }
 
+    // Selection highlight (translucent overlay, viewport rows).
+    if (_hasSelection) {
+        int sr, sc, er, ec; [self normSelStart:&sr col:&sc end:&er col:&ec];
+        [[NSColor colorWithSRGBRed:0.30 green:0.50 blue:0.90 alpha:0.35] set];
+        for (int vr = sr; vr <= er && vr < R; ++vr) {
+            int c0 = (vr == sr) ? sc : 0;
+            int c1 = (vr == er) ? ec : _cols;
+            if (c1 > c0)
+                NSRectFillUsingOperation(NSMakeRect(c0 * _cellW, vr * _cellH,
+                                                    (c1 - c0) * _cellW, _cellH),
+                                         NSCompositingOperationSourceOver);
+        }
+    }
+
     // Caret (only when viewing the live bottom).
     if (s == 0) {
         int cr = grid.cursorRow();
@@ -221,6 +327,7 @@ static NSColor* colorFromARGB(uint32_t c) {
 - (void)keyDown:(NSEvent*)event {
     if (!_pty) return;
     _scrollOffset = 0;   // typing snaps back to the live bottom
+    _hasSelection = NO;  // and clears any selection
     NSString* chars = event.characters;
     if (chars.length == 0) return;
 
