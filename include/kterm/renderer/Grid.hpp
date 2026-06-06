@@ -11,6 +11,8 @@ public:
     void resize(int cols, int rows);
     void clear();
     void clearLine(int row);
+    void eraseToLineEnd();   // erase from cursor column to end of current row
+    void eraseToScreenEnd(); // erase from cursor to end of screen
 
     void putChar(char c);
 

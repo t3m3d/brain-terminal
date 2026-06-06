@@ -69,11 +69,46 @@ void Grid::clearLine(int row) {
         m_cells[row].assign(m_cols, Cell());
 }
 
+// Erase from the cursor column to the end of the current row (CSI 0K). This
+// is what shells emit (ESC[K) to clean the tail of a redrawn line — erasing
+// the whole row instead wipes the prompt.
+void Grid::eraseToLineEnd() {
+    if (m_cursorRow >= 0 && m_cursorRow < m_rows)
+        for (int c = m_cursorCol; c < m_cols; ++c)
+            m_cells[m_cursorRow][c] = Cell();
+}
+
+// Erase from the cursor to the end of the screen (CSI 0J): rest of this row,
+// then all rows below.
+void Grid::eraseToScreenEnd() {
+    eraseToLineEnd();
+    for (int r = m_cursorRow + 1; r < m_rows; ++r)
+        m_cells[r].assign(m_cols, Cell());
+}
+
 void Grid::putChar(char c) {
-    if (c == '\n') {
+    unsigned char uc = static_cast<unsigned char>(c);
+
+    if (c == '\n') {                 // line feed -> next row, column 0
         m_cursorRow++;
         m_cursorCol = 0;
         clampCursor();
+        return;
+    }
+    if (c == '\r') {                 // carriage return -> column 0
+        m_cursorCol = 0;
+        return;
+    }
+    if (c == '\b') {                 // backspace -> move left (no erase)
+        if (m_cursorCol > 0) m_cursorCol--;
+        return;
+    }
+    if (c == '\t') {                 // tab -> next 8-column stop
+        m_cursorCol = ((m_cursorCol / 8) + 1) * 8;
+        if (m_cursorCol >= m_cols) m_cursorCol = m_cols - 1;
+        return;
+    }
+    if (uc < 0x20 || uc == 0x7f) {   // ignore other control chars (bell, etc.)
         return;
     }
 

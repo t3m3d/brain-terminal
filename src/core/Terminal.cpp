@@ -76,7 +76,9 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
             break;
 
         case EscapeType::ClearLine:
-            m_grid.clearLine(m_cursorRow);
+            // ESC[K = erase cursor -> end of line (using the grid's real
+            // cursor, not Terminal's stale m_cursorRow).
+            m_grid.eraseToLineEnd();
             break;
 
         case EscapeType::SetFGColor:
