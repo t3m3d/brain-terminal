@@ -222,7 +222,7 @@ static inline void argb(uint32_t c, float* r, float* g, float* b, float* a) {
             float y = vr * (float)_cellH;
             for (int c = 0; c < (int)line->size(); ++c) {
                 const kterm::renderer::Cell& cell = (*line)[c];
-                float x = c * (float)_cellW;
+                float x = (float)_gutterW + c * (float)_cellW;   // shift past gutter
                 uint8_t at = cell.attrs;
 
                 float fr=dfR,fg=dfG,fb=dfB; bool hasBg=false; float br=0,bg=0,bb=0;
@@ -263,7 +263,7 @@ static inline void argb(uint32_t c, float* r, float* g, float* b, float* a) {
         if (er<sr || (er==sr&&ec<sc)) { int t; t=sr;sr=er;er=t; t=sc;sc=ec;ec=t; }
         for (int vr=sr; vr<=er && vr<R; ++vr) {
             int c0=(vr==sr)?sc:0, c1=(vr==er)?ec:cols;
-            if (c1>c0) [self addSolidX:c0*_cellW y:vr*_cellH w:(c1-c0)*_cellW h:_cellH r:0.30 g:0.50 b:0.90 a:0.35];
+            if (c1>c0) [self addSolidX:_gutterW+c0*_cellW y:vr*_cellH w:(c1-c0)*_cellW h:_cellH r:0.30 g:0.50 b:0.90 a:0.35];
         }
     }
 
@@ -272,7 +272,31 @@ static inline void argb(uint32_t c, float* r, float* g, float* b, float* a) {
         int cr = grid.cursorRow(), cc = grid.cursorCol();
         float ccr=0.55f, ccg=0.78f, ccb=1.0f;
         if (_caretColor) { CGFloat r,g,b,a; [[_caretColor colorUsingColorSpace:NSColorSpace.sRGBColorSpace] getRed:&r green:&g blue:&b alpha:&a]; ccr=r;ccg=g;ccb=b; }
-        [self addSolidX:cc*_cellW y:cr*_cellH w:_cellW h:_cellH r:ccr g:ccg b:ccb a:0.55];
+        [self addSolidX:_gutterW+cc*_cellW y:cr*_cellH w:_cellW h:_cellH r:ccr g:ccg b:ccb a:0.55];
+    }
+
+    // Command-block status bar (overlay): hovered block at full strength, the
+    // active (most recent) command faintly. Quiet — nothing drawn when idle.
+    if (term->hasBlockMarks()) {
+        long absScroll  = grid.absScroll();
+        long hoverStart = (_hoverRow >= 0) ? term->blockStartForLine(absScroll - s + _hoverRow) : -1;
+        long activeStart = term->lastPromptLine();
+        for (int vr = 0; vr < R; ++vr) {
+            long abs = absScroll - s + vr;
+            long blockStart = term->blockStartForLine(abs);
+            if (blockStart < 0) continue;
+            bool isHover = (blockStart == hoverStart), isActive = (blockStart == activeStart);
+            if (!isHover && !isActive) continue;
+            float br,bg,bb;
+            switch (term->blockStatusForLine(abs)) {
+                case 1:  br=0.30f; bg=0.78f; bb=0.45f; break;   // ok
+                case 2:  br=0.90f; bg=0.33f; bb=0.33f; break;   // fail
+                case 3:  br=0.95f; bg=0.75f; bb=0.25f; break;   // running
+                default: br=0.55f; bg=0.58f; bb=0.65f; break;   // idle prompt
+            }
+            float alpha = isHover ? 0.95f : 0.30f;
+            [self addSolidX:2.0f y:vr*_cellH w:3.0f h:_cellH r:br g:bg b:bb a:alpha];
+        }
     }
 
     // Encode + present.

@@ -24,6 +24,11 @@
 // Caret fill color (sRGB). Defaults to a light blue if never set.
 @property (nonatomic, strong) NSColor* caretColor;
 
+// Left gutter width (points) reserved for the command-block status bar, and the
+// viewport row currently under the mouse (-1 = none). Set before each render.
+@property (nonatomic, assign) CGFloat gutterW;
+@property (nonatomic, assign) int hoverRow;
+
 - (void)renderTerminal:(kterm::core::Terminal*)term
                  layer:(CAMetalLayer*)layer
                  viewW:(CGFloat)viewW

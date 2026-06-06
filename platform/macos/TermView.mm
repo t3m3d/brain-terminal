@@ -54,6 +54,12 @@ static NSColor* colorFromARGB(uint32_t c) {
     CADisplayLink* _displayLink;   // coalesces Metal renders to the refresh rate
     BOOL       _needsRender;
     std::string _shell;
+    // Command blocks (OSC 133). A small left gutter holds the per-block status
+    // bar, shown only for the hovered block + lightly for the active command.
+    CGFloat    _gutterW;
+    int        _hoverRow;          // viewport row under the mouse, -1 = none
+    NSTrackingArea* _trackingArea;
+    long       _menuAbsLine;       // abs line the context menu was opened on
 }
 
 - (instancetype)initWithFrame:(NSRect)frame
@@ -61,6 +67,10 @@ static NSColor* colorFromARGB(uint32_t c) {
                        config:(BrainConfig*)config {
     self = [super initWithFrame:frame];
     if (!self) return nil;
+
+    _gutterW  = 10.0;   // narrow left margin; block status bar lives here
+    _hoverRow = -1;
+    _menuAbsLine = -1;
 
     CGFloat fontSize = config.fontSize;
     _font = [NSFont fontWithName:config.fontName size:fontSize];
@@ -110,7 +120,7 @@ static NSColor* colorFromARGB(uint32_t c) {
 }
 
 - (void)rebuildTerminalForSize:(NSSize)size {
-    int cols = (int)(size.width  / _cellW);
+    int cols = (int)((size.width - _gutterW) / _cellW);   // reserve the gutter
     int rows = (int)(size.height / _cellH);
     if (cols < 1) cols = 1;
     if (rows < 1) rows = 1;
@@ -210,6 +220,8 @@ static NSColor* colorFromARGB(uint32_t c) {
 
 - (void)renderMetal {
     if (!_renderer || !_metalLayer || !_term) return;
+    _renderer.gutterW = _gutterW;
+    _renderer.hoverRow = _hoverRow;
     [_renderer renderTerminal:_term layer:_metalLayer
                         viewW:self.bounds.size.width viewH:self.bounds.size.height
                  scrollOffset:_scrollOffset cols:_cols rows:_rows
@@ -293,13 +305,30 @@ static NSColor* colorFromARGB(uint32_t c) {
 - (void)cellForEvent:(NSEvent*)event row:(int*)row col:(int*)col {
     NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
     int r = (int)(p.y / _cellH);
-    int c = (int)(p.x / _cellW);
+    int c = (int)((p.x - _gutterW) / _cellW);   // text starts after the gutter
     if (r < 0) r = 0;  if (r >= _rows) r = _rows - 1;
     if (c < 0) c = 0;  if (c > _cols)  c = _cols;   // one past end = select to EOL
     *row = r; *col = c;
 }
 
+// Absolute (scroll-stable) line number of viewport row vr. Derived in the
+// memo: top visible line = absScroll - scrollOffset, so abs(vr) = that + vr.
+- (long)absLineForViewportRow:(int)vr {
+    if (!_term) return -1;
+    const auto& grid = _term->grid();
+    int H = grid.historyLines();
+    int s = _scrollOffset; if (s < 0) s = 0; if (s > H) s = H;
+    return grid.absScroll() - s + vr;
+}
+
 - (void)mouseDown:(NSEvent*)event {
+    NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
+    // Click in the gutter = jump that command's prompt to the top of the view.
+    if (p.x < _gutterW && _term && _term->hasBlockMarks()) {
+        int vr = (int)(p.y / _cellH);
+        long start = _term->blockStartForLine([self absLineForViewportRow:vr]);
+        if (start >= 0) { [self scrollAbsLineToTop:start]; return; }
+    }
     int r, c; [self cellForEvent:event row:&r col:&c];
     _selStartRow = _selEndRow = r; _selStartCol = _selEndCol = c;
     _selecting = YES; _hasSelection = NO;
@@ -312,6 +341,56 @@ static NSColor* colorFromARGB(uint32_t c) {
     [self refresh];
 }
 - (void)mouseUp:(NSEvent*)event { _selecting = NO; }
+
+#pragma mark - Block hover
+
+- (void)updateTrackingAreas {
+    [super updateTrackingAreas];
+    if (_trackingArea) [self removeTrackingArea:_trackingArea];
+    _trackingArea = [[NSTrackingArea alloc]
+        initWithRect:self.bounds
+             options:(NSTrackingMouseMoved | NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow)
+               owner:self userInfo:nil];
+    [self addTrackingArea:_trackingArea];
+}
+
+- (void)mouseMoved:(NSEvent*)event {
+    NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
+    int vr = (int)(p.y / _cellH);
+    if (vr < 0 || vr >= _rows) vr = -1;
+    if (vr != _hoverRow) { _hoverRow = vr; [self refresh]; }
+}
+
+- (void)mouseExited:(NSEvent*)event {
+    if (_hoverRow != -1) { _hoverRow = -1; [self refresh]; }
+}
+
+#pragma mark - Prompt navigation
+
+// Scroll so that absolute line `abs` sits at the top of the viewport.
+- (void)scrollAbsLineToTop:(long)abs {
+    if (!_term) return;
+    const auto& grid = _term->grid();
+    int H = grid.historyLines();
+    long s = grid.absScroll() - abs;     // top line = absScroll - scrollOffset
+    if (s < 0) s = 0; if (s > H) s = H;
+    _scrollOffset = (int)s;
+    _hasSelection = NO;
+    [self refresh];
+}
+
+// Cmd-Up / Cmd-Down: jump to the previous / next command prompt.
+- (void)jumpPrompt:(int)dir {
+    if (!_term || !_term->hasBlockMarks()) return;
+    long topAbs = [self absLineForViewportRow:0];
+    long target = (dir < 0) ? _term->prevPromptLine(topAbs)
+                            : _term->nextPromptLine(topAbs);
+    if (target < 0) {
+        if (dir > 0) { _scrollOffset = 0; [self refresh]; }   // past last = live bottom
+        return;
+    }
+    [self scrollAbsLineToTop:target];
+}
 
 - (void)normSelStart:(int*)sr col:(int*)sc end:(int*)er col:(int*)ec {
     int aR=_selStartRow, aC=_selStartCol, bR=_selEndRow, bC=_selEndCol;
@@ -413,6 +492,11 @@ static std::string sanitizePaste(const std::string& in) {
         if ([ch isEqualToString:@"c"] && _hasSelection) { [self copySelection]; return YES; }
         if ([ch isEqualToString:@"v"]) { [self pasteClipboard]; return YES; }
         if ([ch isEqualToString:@"a"]) { [self selectAll:nil]; return YES; }
+        if (ch.length == 1) {
+            unichar u = [ch characterAtIndex:0];
+            if (u == NSUpArrowFunctionKey)   { [self jumpPrompt:-1]; return YES; }  // prev command
+            if (u == NSDownArrowFunctionKey) { [self jumpPrompt:+1]; return YES; }  // next command
+        }
     }
     return [super performKeyEquivalent:event];
 }
@@ -422,16 +506,67 @@ static std::string sanitizePaste(const std::string& in) {
 
 // Right-click (or control-click / two-finger tap) context menu.
 - (NSMenu*)menuForEvent:(NSEvent*)event {
+    // Remember which command block was clicked, for "Copy Command Output".
+    NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
+    int vr = (int)(p.y / _cellH);
+    _menuAbsLine = (_term && vr >= 0 && vr < _rows) ? [self absLineForViewportRow:vr] : -1;
+
     NSMenu* m = [[NSMenu alloc] init];
     NSMenuItem* copyItem = [m addItemWithTitle:@"Copy" action:@selector(copy:) keyEquivalent:@""];
     [copyItem setTarget:self];
     [copyItem setEnabled:_hasSelection];
     NSMenuItem* pasteItem = [m addItemWithTitle:@"Paste" action:@selector(paste:) keyEquivalent:@""];
     [pasteItem setTarget:self];
+
+    BOOL hasBlock = _term && _menuAbsLine >= 0 && _term->blockStartForLine(_menuAbsLine) >= 0;
+    if (hasBlock) {
+        NSMenuItem* blockItem = [m addItemWithTitle:@"Copy Command Output"
+                                             action:@selector(copyCommandOutput:) keyEquivalent:@""];
+        [blockItem setTarget:self];
+    }
+
     [m addItem:[NSMenuItem separatorItem]];
     NSMenuItem* allItem = [m addItemWithTitle:@"Select All" action:@selector(selectAll:) keyEquivalent:@""];
     [allItem setTarget:self];
     return m;
+}
+
+// Copy the entire command block under the right-click — prompt line through the
+// line before the next prompt — straight to the clipboard, regardless of scroll.
+- (void)copyCommandOutput:(id)sender {
+    if (!_term || _menuAbsLine < 0) return;
+    long start = _term->blockStartForLine(_menuAbsLine);
+    if (start < 0) return;
+    const auto& grid = _term->grid();
+    long next = _term->nextPromptLine(start);
+    long end  = (next >= 0) ? next - 1 : grid.absScroll() + (long)grid.rows().size() - 1;
+    if (end < start) end = start;
+
+    long H = grid.historyLines();
+    long base = grid.absScroll() - H;     // abs line of combined index 0
+    NSMutableString* out = [NSMutableString string];
+    for (long abs = start; abs <= end; ++abs) {
+        long idx = abs - base;            // index into [history.. ++ live..]
+        const std::vector<kterm::renderer::Cell>* line = nullptr;
+        if (idx >= 0 && idx < H) line = &grid.historyRow((int)idx);
+        else {
+            long lr = idx - H;
+            const auto& live = grid.rows();
+            if (lr >= 0 && lr < (long)live.size()) line = &live[(int)lr];
+        }
+        if (!line) continue;
+        std::u32string u;
+        for (const auto& cell : *line) u.push_back((char32_t)cell.ch);
+        while (!u.empty() && u.back() == U' ') u.pop_back();
+        NSString* rs = [[NSString alloc] initWithBytes:u.data() length:u.size() * 4
+                                              encoding:NSUTF32LittleEndianStringEncoding];
+        if (rs) [out appendString:rs];
+        if (abs < end) [out appendString:@"\n"];
+    }
+    if (out.length == 0) return;
+    NSPasteboard* pb = [NSPasteboard generalPasteboard];
+    [pb clearContents];
+    [pb setString:out forType:NSPasteboardTypeString];
 }
 
 // Standard responder actions (routed by the Edit menu / Cmd-C/V/A).
@@ -468,7 +603,7 @@ static std::string sanitizePaste(const std::string& in) {
         CGFloat y = vr * _cellH;
         for (int c = 0; c < (int)line->size(); ++c) {
             const kterm::renderer::Cell& cell = (*line)[c];
-            CGFloat x = c * _cellW;
+            CGFloat x = _gutterW + c * _cellW;   // shift past the gutter
             uint8_t a = cell.attrs;
 
             // Effective colors (fg sentinel 0xFFFFFFFF / bg alpha 0 = defaults).
@@ -517,7 +652,7 @@ static std::string sanitizePaste(const std::string& in) {
             int c0 = (vr == sr) ? sc : 0;
             int c1 = (vr == er) ? ec : _cols;
             if (c1 > c0)
-                NSRectFillUsingOperation(NSMakeRect(c0 * _cellW, vr * _cellH,
+                NSRectFillUsingOperation(NSMakeRect(_gutterW + c0 * _cellW, vr * _cellH,
                                                     (c1 - c0) * _cellW, _cellH),
                                          NSCompositingOperationSourceOver);
         }
@@ -528,7 +663,40 @@ static std::string sanitizePaste(const std::string& in) {
         int cr = grid.cursorRow();
         int cc = grid.cursorCol();
         [[_cursorColor colorWithAlphaComponent:0.55] set];
-        NSRectFillUsingOperation(NSMakeRect(cc * _cellW, cr * _cellH, _cellW, _cellH),
+        NSRectFillUsingOperation(NSMakeRect(_gutterW + cc * _cellW, cr * _cellH, _cellW, _cellH),
+                                 NSCompositingOperationSourceOver);
+    }
+
+    [self drawBlockBars:R historyLines:H scroll:s];
+}
+
+// Block status bar (CPU). Drawn in the gutter for the hovered block and, faintly,
+// the active (most recent) command. Quiet by design: nothing when idle.
+- (void)drawBlockBars:(int)R historyLines:(int)H scroll:(int)s {
+    if (!_term || !_term->hasBlockMarks()) return;
+    long absScroll   = _term->grid().absScroll();
+    long hoverStart  = (_hoverRow >= 0) ? _term->blockStartForLine([self absLineForViewportRow:_hoverRow]) : -1;
+    long activeStart = _term->lastPromptLine();
+
+    for (int vr = 0; vr < R; ++vr) {
+        long abs = absScroll - s + vr;
+        long blockStart = _term->blockStartForLine(abs);
+        if (blockStart < 0) continue;
+        bool isHover  = (blockStart == hoverStart);
+        bool isActive = (blockStart == activeStart);
+        if (!isHover && !isActive) continue;            // quiet otherwise
+
+        int status = _term->blockStatusForLine(abs);    // 0 idle,1 ok,2 fail,3 running
+        NSColor* col;
+        switch (status) {
+            case 1:  col = [NSColor colorWithSRGBRed:0.30 green:0.78 blue:0.45 alpha:1.0]; break;  // ok
+            case 2:  col = [NSColor colorWithSRGBRed:0.90 green:0.33 blue:0.33 alpha:1.0]; break;  // fail
+            case 3:  col = [NSColor colorWithSRGBRed:0.95 green:0.75 blue:0.25 alpha:1.0]; break;  // running
+            default: col = [NSColor colorWithSRGBRed:0.55 green:0.58 blue:0.65 alpha:1.0]; break;  // idle prompt
+        }
+        CGFloat alpha = isHover ? 0.95 : 0.30;           // active-only = faint
+        [[col colorWithAlphaComponent:alpha] set];
+        NSRectFillUsingOperation(NSMakeRect(2.0, vr * _cellH, 3.0, _cellH),
                                  NSCompositingOperationSourceOver);
     }
 }
