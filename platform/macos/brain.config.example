@@ -1,0 +1,20 @@
+# brain config — copy to ~/.config/brain/config
+#
+# Format: `key = value`, one per line. Lines starting with '#' or ';' are
+# comments. Unknown keys are ignored; missing keys keep their defaults, so an
+# empty file reproduces the built-in look. Override the path with $BRAIN_CONFIG.
+
+# Font family (must be installed). Falls back to the system monospaced font.
+font       = JetBrainsMono Nerd Font Mono
+font-size  = 13
+
+# Colors accept #RGB, #RRGGBB, or #RRGGBBAA (sRGB).
+foreground = #ECECF5
+background = #121217
+cursor     = #8CC8FF
+
+# Background opacity: 0.0 (fully transparent) .. 1.0 (opaque).
+opacity    = 0.85
+
+# Renderer: metal (GPU) or cpu. Omit to use the default (--metal flag / env).
+renderer   = metal

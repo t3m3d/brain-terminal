@@ -1,11 +1,12 @@
 #import <Cocoa/Cocoa.h>
 #import "TermView.h"
+#import "Config.h"
 #include <cstdlib>
 
 // Minimal app delegate: quit when the last window closes.
-@interface TerkAppDelegate : NSObject <NSApplicationDelegate>
+@interface BrainAppDelegate : NSObject <NSApplicationDelegate>
 @end
-@implementation TerkAppDelegate
+@implementation BrainAppDelegate
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)sender { return YES; }
 @end
 
@@ -16,7 +17,7 @@ static void installMenu(NSApplication* app) {
     NSMenuItem* appItem = [[NSMenuItem alloc] init];
     [mainMenu addItem:appItem];
     NSMenu* appMenu = [[NSMenu alloc] init];
-    [appMenu addItemWithTitle:@"Quit kterm" action:@selector(terminate:) keyEquivalent:@"q"];
+    [appMenu addItemWithTitle:@"Quit brain" action:@selector(terminate:) keyEquivalent:@"q"];
     [appItem setSubmenu:appMenu];
 
     NSMenuItem* editItem = [[NSMenuItem alloc] init];
@@ -27,18 +28,28 @@ static void installMenu(NSApplication* app) {
     [editMenu addItemWithTitle:@"Select All" action:@selector(selectAll:) keyEquivalent:@"a"];
     [editItem setSubmenu:editMenu];
 
+    // Format menu: the native font panel (Cmd-T) changes the font live.
+    NSMenuItem* fmtItem = [[NSMenuItem alloc] init];
+    [mainMenu addItem:fmtItem];
+    NSMenu* fmtMenu = [[NSMenu alloc] initWithTitle:@"Format"];
+    NSMenuItem* fonts = [fmtMenu addItemWithTitle:@"Show Fonts"
+                                           action:@selector(orderFrontFontPanel:)
+                                    keyEquivalent:@"t"];
+    [fonts setTarget:[NSFontManager sharedFontManager]];
+    [fmtItem setSubmenu:fmtMenu];
+
     [app setMainMenu:mainMenu];
 }
 
 int main(int argc, const char* argv[]) {
     @autoreleasepool {
-        // `open kterm.app --args --metal` selects the GPU renderer (env also works).
+        // `open brain.app --args --metal` selects the GPU renderer (env also works).
         for (int i = 1; i < argc; i++)
-            if (strcmp(argv[i], "--metal") == 0) setenv("KTERM_RENDERER", "metal", 1);
+            if (strcmp(argv[i], "--metal") == 0) setenv("BRAIN_RENDERER", "metal", 1);
         NSApplication* app = [NSApplication sharedApplication];
         [app setActivationPolicy:NSApplicationActivationPolicyRegular];
 
-        TerkAppDelegate* delegate = [[TerkAppDelegate alloc] init];
+        BrainAppDelegate* delegate = [[BrainAppDelegate alloc] init];
         [app setDelegate:delegate];
         installMenu(app);
 
@@ -51,17 +62,23 @@ int main(int argc, const char* argv[]) {
                                                    NSWindowStyleMaskResizable)
                                           backing:NSBackingStoreBuffered
                                             defer:NO];
-        [window setTitle:@"kterm"];
+        [window setTitle:@"brain"];
+
+        // User config: ~/.config/brain/config (font, colors, opacity, renderer).
+        BrainConfig* config = [BrainConfig loadConfig];
+
+        // Window-level transparency so a translucent background shows the desktop.
+        if (config.opacity < 1.0) {
+            window.opaque = NO;
+            window.backgroundColor = [NSColor clearColor];
+        }
 
         const char* shellEnv = getenv("SHELL");
         NSString* shell = shellEnv ? [NSString stringWithUTF8String:shellEnv] : @"/bin/zsh";
 
-        // Prefer a Nerd Font (powerline/icon glyphs for prompts like p10k);
-        // TermView falls back to the system monospaced font if it's absent.
         TermView* view = [[TermView alloc] initWithFrame:frame
                                                    shell:shell
-                                                fontName:@"JetBrainsMono Nerd Font Mono"
-                                                fontSize:13.0];
+                                                  config:config];
         [window setContentView:view];
         [window makeFirstResponder:view];
         [window center];

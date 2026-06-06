@@ -27,6 +27,10 @@ PTYHandles PTYPlatform::createPTY(const std::string& shellPath, int cols, int ro
         // Launch as a login shell (argv[0] prefixed with '-') so the user's
         // profile (PATH, prompt, etc.) is sourced — the macOS default.
         setenv("TERM", "xterm-256color", 1);
+        // Identify ourselves so fetch tools don't report the inherited terminal
+        // (e.g. whatever launched the .app). Overwrite any inherited value.
+        setenv("TERM_PROGRAM", "brain", 1);
+        unsetenv("TERM_PROGRAM_VERSION");
 
         std::string argv0 = "-";
         argv0 += shellPath;  // e.g. "-/bin/zsh"

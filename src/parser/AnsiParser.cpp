@@ -4,6 +4,12 @@
 
 using namespace kterm::parser;
 
+// Cap on an unterminated escape sequence held in the buffer. A hostile program
+// can emit "ESC]" (or "ESC[") and then stream megabytes with no terminator;
+// without a cap m_buffer grows without bound -> memory-exhaustion DoS. 64 KiB
+// is far larger than any real OSC/CSI, so legitimate sequences are unaffected.
+static constexpr size_t kMaxEscPending = 1u << 16;
+
 AnsiParser::AnsiParser(int, int) {}
 
 void AnsiParser::resize(int, int) {}
@@ -43,7 +49,12 @@ void AnsiParser::feed(
                 if (m_buffer[i] == '\x1b' && i + 1 < m_buffer.size() && m_buffer[i+1] == '\\') { termLen = 2; break; }  // ST
                 i++;
             }
-            if (i >= m_buffer.size()) break;     // terminator not here yet — wait
+            if (i >= m_buffer.size()) {          // terminator not here yet, wait
+                // Runaway OSC with no terminator: discard it rather than buffer
+                // unbounded. Drop everything from this ESC onward.
+                if (m_buffer.size() - pos > kMaxEscPending) pos = m_buffer.size();
+                break;
+            }
             EscapeSequence esc;
             esc.type = EscapeType::OSC;
             esc.osc  = m_buffer.substr(pos + 2, i - (pos + 2));
@@ -57,13 +68,19 @@ void AnsiParser::feed(
             continue;
         }
 
-        // Find end of CSI sequence
+        // Find end of CSI sequence. Cast to unsigned char: isalpha() on a
+        // negative value other than EOF is undefined, and bytes >0x7F are
+        // negative under signed char (arm64).
         size_t end = pos + 2;
-        while (end < m_buffer.size() && !std::isalpha(m_buffer[end]))
+        while (end < m_buffer.size() &&
+               !std::isalpha(static_cast<unsigned char>(m_buffer[end])))
             end++;
 
-        if (end >= m_buffer.size())
+        if (end >= m_buffer.size()) {
+            // Runaway CSI with no final byte: discard rather than buffer forever.
+            if (m_buffer.size() - pos > kMaxEscPending) pos = m_buffer.size();
             break;
+        }
 
         std::string seq = m_buffer.substr(pos, end - pos + 1);
         onEscape(parseCSI(seq));
@@ -97,9 +114,9 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
         paramsStr.erase(0, 1);
     }
 
-    // Split parameters. Parse each as a leading integer, tolerating empty,
-    // colon sub-params (38:2:r:g:b), and anything non-numeric WITHOUT throwing
-    // — a bad CSI param must never crash the terminal.
+    // Split parameters. Parse each as a leading integer, tolerating empty
+    // fields, colon sub-params (38:2:r:g:b), and non-numeric junk without
+    // throwing. A bad CSI param must never crash the terminal.
     std::vector<int> params;
     if (!paramsStr.empty()) {
         std::stringstream ss(paramsStr);
@@ -138,7 +155,7 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
         // Clear screen / line. Carry the mode in .value:
         //   J: 0/none = cursor->end of screen, 1 = start->cursor, 2/3 = all.
         //   K: 0/none = cursor->end of line,   1 = start->cursor, 2   = whole line.
-        // (Default 0 — NOT a full clear; shells emit ESC[J / ESC[K constantly.)
+        // Default 0 is not a full clear; shells emit ESC[J / ESC[K constantly.
         case 'J': esc.type = EscapeType::ClearScreen; esc.value = p(0, 0); break;
         case 'K': esc.type = EscapeType::ClearLine;   esc.value = p(0, 0); break;
 

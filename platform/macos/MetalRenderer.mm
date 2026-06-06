@@ -46,7 +46,7 @@ fragment float4 f_main(VOut in [[stage_in]],
     id<MTLBuffer>              _vbuf;   // overlay (selection + caret), rebuilt per frame
     id<MTLBuffer>              _gbuf;   // cached grid geometry, rebuilt on content change
 
-    NSFont* _font; NSFont* _bold; NSFont* _italic; NSFont* _boldItalic;
+    NSFont* _font; NSFont* _bold; NSFont* _italic; NSFont* _boldItalic; NSFont* _fallback;
     CGFloat _cellW, _cellH, _scale;
 
     int _atlasDim, _tileW, _tileH, _atlasX, _atlasY;
@@ -54,18 +54,19 @@ fragment float4 f_main(VOut in [[stage_in]],
     std::vector<MVertex>* _verts;        // scratch: builds grid (on rebuild) then overlay
     size_t   _gridCount;                 // vertex count currently in _gbuf
 
-    // Cache key — when any of these changes, the grid geometry is rebuilt.
+    // When any of these changes, the cached grid geometry is rebuilt.
     uint64_t _cacheGen; int _cacheScroll, _cacheCols, _cacheRows;
     uint32_t _cacheFg, _cacheBg; BOOL _cacheValid;
     BOOL _ready;
 }
 
 - (instancetype)initWithFont:(NSFont*)font bold:(NSFont*)bold italic:(NSFont*)italic
-                  boldItalic:(NSFont*)boldItalic cellW:(CGFloat)cellW cellH:(CGFloat)cellH
+                  boldItalic:(NSFont*)boldItalic fallback:(NSFont*)fallback
+                       cellW:(CGFloat)cellW cellH:(CGFloat)cellH
                        scale:(CGFloat)scale {
     self = [super init];
     if (!self) return nil;
-    _font = font; _bold = bold; _italic = italic; _boldItalic = boldItalic;
+    _font = font; _bold = bold; _italic = italic; _boldItalic = boldItalic; _fallback = fallback;
     _cellW = cellW; _cellH = cellH; _scale = scale > 0 ? scale : 1.0;
     _glyphs = new std::unordered_map<uint64_t, GlyphInfo>();
     _verts  = new std::vector<MVertex>();
@@ -76,7 +77,7 @@ fragment float4 f_main(VOut in [[stage_in]],
 
     NSError* err = nil;
     id<MTLLibrary> lib = [_device newLibraryWithSource:kShaderSrc options:nil error:&err];
-    if (!lib) { NSLog(@"kterm metal: shader compile failed: %@", err); return self; }
+    if (!lib) { NSLog(@"brain metal: shader compile failed: %@", err); return self; }
 
     MTLRenderPipelineDescriptor* pd = [[MTLRenderPipelineDescriptor alloc] init];
     pd.vertexFunction   = [lib newFunctionWithName:@"v_main"];
@@ -88,7 +89,7 @@ fragment float4 f_main(VOut in [[stage_in]],
     pd.colorAttachments[0].sourceAlphaBlendFactor      = MTLBlendFactorSourceAlpha;
     pd.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
     _pipe = [_device newRenderPipelineStateWithDescriptor:pd error:&err];
-    if (!_pipe) { NSLog(@"kterm metal: pipeline failed: %@", err); return self; }
+    if (!_pipe) { NSLog(@"brain metal: pipeline failed: %@", err); return self; }
 
     MTLSamplerDescriptor* sd = [[MTLSamplerDescriptor alloc] init];
     sd.minFilter = MTLSamplerMinMagFilterLinear;
@@ -125,6 +126,11 @@ fragment float4 f_main(VOut in [[stage_in]],
 
     NSFont* f = _font;
     if (variant == 3) f = _boldItalic; else if (variant == 1) f = _bold; else if (variant == 2) f = _italic;
+    // Font fallback: if the body font lacks this glyph (e.g. p10k powerline
+    // icons in a non-Nerd font), draw it from the Nerd fallback instead.
+    if (_fallback && ![[f coveredCharacterSet] longCharacterIsMember:cp]
+                  &&  [[_fallback coveredCharacterSet] longCharacterIsMember:cp])
+        f = _fallback;
 
     int W = _tileW, Hh = _tileH;
     std::vector<unsigned char> buf((size_t)W * Hh, 0);
@@ -195,9 +201,8 @@ static inline void argb(uint32_t c, float* r, float* g, float* b, float* a) {
     const auto& live = grid.rows();
     int R = (int)live.size();
 
-    // M4: grid geometry is rebuilt only when content / scroll / size / default
-    // colors change. Caret-blink and selection-only frames reuse the cached
-    // _gbuf and just re-upload the tiny overlay.
+    // Rebuild the grid geometry only when content, scroll, size, or the default
+    // colors change. A caret blink or selection change reuses the cached _gbuf.
     uint32_t fgKey = (uint32_t)(dfR*255)<<16 | (uint32_t)(dfG*255)<<8 | (uint32_t)(dfB*255);
     uint32_t bgKey = (uint32_t)(dbR*255)<<16 | (uint32_t)(dbG*255)<<8 | (uint32_t)(dbB*255);
     uint64_t gen   = grid.generation();
@@ -250,10 +255,9 @@ static inline void argb(uint32_t c, float* r, float* g, float* b, float* a) {
         _cacheFg=fgKey; _cacheBg=bgKey; _cacheValid=YES;
     }
 
-    // Overlay (selection + caret) — always rebuilt; small and cheap.
+    // Overlay (selection + caret) is rebuilt every frame; it's only a few quads.
     _verts->clear();
 
-    // Selection overlay (translucent).
     if (hasSelection) {
         int sr=(int)selStart.y, sc=(int)selStart.x, er=(int)selEnd.y, ec=(int)selEnd.x;
         if (er<sr || (er==sr&&ec<sc)) { int t; t=sr;sr=er;er=t; t=sc;sc=ec;ec=t; }
@@ -266,7 +270,9 @@ static inline void argb(uint32_t c, float* r, float* g, float* b, float* a) {
     // Caret.
     if (s == 0 && caretOn && term->cursorVisible()) {
         int cr = grid.cursorRow(), cc = grid.cursorCol();
-        [self addSolidX:cc*_cellW y:cr*_cellH w:_cellW h:_cellH r:0.55 g:0.78 b:1.0 a:0.55];
+        float ccr=0.55f, ccg=0.78f, ccb=1.0f;
+        if (_caretColor) { CGFloat r,g,b,a; [[_caretColor colorUsingColorSpace:NSColorSpace.sRGBColorSpace] getRed:&r green:&g blue:&b alpha:&a]; ccr=r;ccg=g;ccb=b; }
+        [self addSolidX:cc*_cellW y:cr*_cellH w:_cellW h:_cellH r:ccr g:ccg b:ccb a:0.55];
     }
 
     // Encode + present.
@@ -277,7 +283,7 @@ static inline void argb(uint32_t c, float* r, float* g, float* b, float* a) {
     rp.colorAttachments[0].texture = drawable.texture;
     rp.colorAttachments[0].loadAction = MTLLoadActionClear;
     rp.colorAttachments[0].storeAction = MTLStoreActionStore;
-    rp.colorAttachments[0].clearColor = MTLClearColorMake(dbR, dbG, dbB, 1.0);
+    rp.colorAttachments[0].clearColor = MTLClearColorMake(dbR, dbG, dbB, dbA);  // dbA<1 => translucent
 
     id<MTLCommandBuffer> cb = [_queue commandBuffer];
     id<MTLRenderCommandEncoder> enc = [cb renderCommandEncoderWithDescriptor:rp];

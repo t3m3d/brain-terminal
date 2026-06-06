@@ -55,15 +55,28 @@ void Terminal::handleText(const std::string& text) {
         else if ((b >> 3) == 0x1E){ cp = b & 0x07;  len = 4; }
         else                     { cp = b;          len = 1; }  // invalid lead
 
-        if (i + len > s.size()) {           // incomplete tail — save for next feed
+        if (i + len > s.size()) {           // incomplete tail, save for next feed
             m_utf8 = s.substr(i);
             break;
         }
+        bool bad = false;
         for (int k = 1; k < len; ++k) {
             unsigned char cb = static_cast<unsigned char>(s[i + k]);
-            if ((cb >> 6) != 0x2) { len = 1; cp = b; break; }  // bad continuation
+            if ((cb >> 6) != 0x2) { len = 1; cp = b; bad = true; break; }  // bad continuation
             cp = (cp << 6) | (cb & 0x3F);
         }
+        // Reject overlong encodings, UTF-16 surrogates, and out-of-range
+        // codepoints. Overlong forms are a known filter-bypass class; surrogates
+        // and >U+10FFFF aren't valid scalar values. Map any of them to U+FFFD.
+        if (!bad) {
+            if      (len == 1 && b >= 0x80)      bad = true;   // invalid lead / lone continuation
+            else if (len == 2 && cp < 0x80)      bad = true;
+            else if (len == 3 && cp < 0x800)     bad = true;
+            else if (len == 4 && cp < 0x10000)   bad = true;
+            else if (cp >= 0xD800 && cp <= 0xDFFF) bad = true;
+            else if (cp > 0x10FFFF)              bad = true;
+        }
+        if (bad) cp = 0xFFFD;
         m_grid.putCodepoint(cp);
         i += len;
     }

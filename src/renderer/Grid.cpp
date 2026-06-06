@@ -51,11 +51,29 @@ Grid::Grid(int cols, int rows)
 }
 
 void Grid::resize(int cols, int rows) {
+    if (cols < 1) cols = 1;
+    if (rows < 1) rows = 1;
+
+    // Preserve content across a resize (window drag, font change) rather than
+    // clearing. When rows shrink, keep the bottom of the screen where the
+    // prompt and cursor live.
+    std::vector<std::vector<Cell>> next(rows, std::vector<Cell>(cols));
+    int copyRows = std::min(rows, m_rows);
+    int copyCols = std::min(cols, m_cols);
+    int srcStart = (m_rows > rows) ? (m_rows - rows) : 0;
+    for (int r = 0; r < copyRows; ++r) {
+        const std::vector<Cell>& src = m_cells[srcStart + r];
+        for (int c = 0; c < copyCols; ++c) next[r][c] = src[c];
+    }
+    m_cells = std::move(next);
     m_cols = cols;
     m_rows = rows;
-    m_cells.assign(rows, std::vector<Cell>(cols));
-    m_cursorRow = 0;
-    m_cursorCol = 0;
+
+    m_cursorRow -= srcStart;
+    if (m_cursorRow < 0) m_cursorRow = 0;
+    if (m_cursorRow >= rows) m_cursorRow = rows - 1;
+    if (m_cursorCol >= cols) m_cursorCol = cols - 1;
+    m_wrapPending = false;
     m_generation++;
 }
 
@@ -72,9 +90,8 @@ void Grid::clearLine(int row) {
     m_generation++;
 }
 
-// Erase from the cursor column to the end of the current row (CSI 0K). This
-// is what shells emit (ESC[K) to clean the tail of a redrawn line — erasing
-// the whole row instead wipes the prompt.
+// Erase from the cursor column to end of row (CSI 0K). Shells emit ESC[K to
+// clean the tail of a redrawn line; erasing the whole row would wipe the prompt.
 void Grid::eraseToLineEnd() {
     if (m_cursorRow >= 0 && m_cursorRow < m_rows)
         for (int c = m_cursorCol; c < m_cols; ++c)
@@ -145,8 +162,8 @@ void Grid::putCodepoint(uint32_t cp) {
     }
 
     // Deferred ("phantom") wrap: a glyph in the last column parks the cursor
-    // there; the actual wrap happens only when the NEXT glyph arrives. This is
-    // standard VT behavior — without it, zsh's prompt cleanup leaves a stray %.
+    // there, and the wrap only happens when the next glyph arrives. Standard VT
+    // behavior; without it zsh's prompt cleanup leaves a stray %.
     if (m_wrapPending) {
         m_cursorCol = 0;
         lineFeed();

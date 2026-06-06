@@ -31,8 +31,11 @@ static NSColor* colorFromARGB(uint32_t c) {
     NSFont*    _fontBold;
     NSFont*    _fontItalic;
     NSFont*    _fontBoldItalic;
+    NSFont*    _fallbackFont;   // Nerd Font for glyphs the body font lacks (prompt icons)
     NSColor*   _defaultBg;
     NSColor*   _defaultFg;
+    NSColor*   _cursorColor;
+    double     _opacity;        // 0..1; < 1 => translucent background
     CGFloat    _cellW;
     CGFloat    _cellH;
     int        _cols;
@@ -45,7 +48,7 @@ static NSColor* colorFromARGB(uint32_t c) {
     int        _selEndRow,   _selEndCol;
     BOOL       _caretOn;
     NSTimer*   _blinkTimer;
-    BOOL       _metal;             // KTERM_RENDERER=metal
+    BOOL       _metal;             // BRAIN_RENDERER=metal
     CAMetalLayer* _metalLayer;
     MetalRenderer* _renderer;
     CADisplayLink* _displayLink;   // coalesces Metal renders to the refresh rate
@@ -55,19 +58,25 @@ static NSColor* colorFromARGB(uint32_t c) {
 
 - (instancetype)initWithFrame:(NSRect)frame
                         shell:(NSString*)shell
-                     fontName:(NSString*)fontName
-                     fontSize:(CGFloat)fontSize {
+                       config:(BrainConfig*)config {
     self = [super initWithFrame:frame];
     if (!self) return nil;
 
-    _font = [NSFont fontWithName:fontName size:fontSize];
+    CGFloat fontSize = config.fontSize;
+    _font = [NSFont fontWithName:config.fontName size:fontSize];
     if (!_font) _font = [NSFont monospacedSystemFontOfSize:fontSize weight:NSFontWeightRegular];
     NSFontManager* fm = [NSFontManager sharedFontManager];
     _fontBold       = [fm convertFont:_font toHaveTrait:NSBoldFontMask];
     _fontItalic     = [fm convertFont:_font toHaveTrait:NSItalicFontMask];
     _fontBoldItalic = [fm convertFont:_fontBold toHaveTrait:NSItalicFontMask];
-    _defaultBg = [NSColor colorWithSRGBRed:0.07 green:0.07 blue:0.09 alpha:1.0];
-    _defaultFg = [NSColor colorWithSRGBRed:0.92 green:0.92 blue:0.96 alpha:1.0];
+    // Icon fallback: always a Nerd Font so prompt glyphs survive a font change.
+    _fallbackFont   = [NSFont fontWithName:@"JetBrainsMono Nerd Font Mono" size:fontSize];
+
+    _opacity     = config.opacity;
+    _cursorColor = config.cursorColor;
+    _defaultFg   = config.foreground;
+    // Fold opacity into the background alpha so empty cells render translucent.
+    _defaultBg   = [config.background colorWithAlphaComponent:_opacity];
 
     // Monospace cell metrics.
     NSDictionary* attrs = @{ NSFontAttributeName: _font };
@@ -77,18 +86,20 @@ static NSColor* colorFromARGB(uint32_t c) {
     if (_cellH < 1) _cellH = fontSize * 1.2;
 
     _shell = std::string([shell UTF8String]);
-    const char* rend = getenv("KTERM_RENDERER");
+    const char* rend = getenv("BRAIN_RENDERER");
     _metal = (rend && strcmp(rend, "metal") == 0);
+    // config `renderer = metal|cpu` overrides the env/flag default.
+    if ([config.renderer isEqualToString:@"metal"]) _metal = YES;
+    else if ([config.renderer isEqualToString:@"cpu"]) _metal = NO;
 
-    // CAMetalLayer must be layer-HOSTING (set self.layer before wantsLayer),
-    // not layer-backed via makeBackingLayer — otherwise AppKit manages/clears
-    // the layer and you get a blank window.
+    // CAMetalLayer has to be layer-hosting: assign self.layer before wantsLayer.
+    // Going through makeBackingLayer lets AppKit clear it, giving a blank window.
     if (_metal) {
         _metalLayer = [CAMetalLayer layer];
         _metalLayer.device = MTLCreateSystemDefaultDevice();
         _metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
         _metalLayer.framebufferOnly = YES;
-        _metalLayer.opaque = YES;
+        _metalLayer.opaque = (_opacity >= 1.0);   // translucent if opacity < 1
         self.layer = _metalLayer;
     }
     self.wantsLayer = YES;
@@ -127,10 +138,8 @@ static NSColor* colorFromARGB(uint32_t c) {
 
         _pty->spawnShell(_shell);
 
-        // Startup nudge: p10k's "instant prompt" draws a cached prompt at the
-        // previous terminal's width and only repaints on a real SIGWINCH.
-        // Once the shell has loaded, briefly wobble the row count to force one
-        // SIGWINCH so the prompt redraws at our actual column width.
+        // p10k instant-prompt caches the old terminal's width and only repaints
+        // on SIGWINCH, so wobble the row count once to force a redraw.
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
             if (u->_pty && u->_term && u->_rows > 1) {
@@ -157,10 +166,11 @@ static NSColor* colorFromARGB(uint32_t c) {
     if (_metal && !_renderer) {
         CGFloat scale = self.window.backingScaleFactor ?: 1.0;
         _renderer = [[MetalRenderer alloc] initWithFont:_font bold:_fontBold italic:_fontItalic
-                                             boldItalic:_fontBoldItalic
+                                             boldItalic:_fontBoldItalic fallback:_fallbackFont
                                                   cellW:_cellW cellH:_cellH scale:scale];
-        if (![_renderer ready]) { NSLog(@"kterm: Metal unavailable, using CPU"); _metal = NO; _renderer = nil; }
+        if (![_renderer ready]) { NSLog(@"brain: Metal unavailable, using CPU"); _metal = NO; _renderer = nil; }
         else {
+            _renderer.caretColor = _cursorColor;
             if (_metalLayer) _metalLayer.device = [_renderer mtlDevice];  // SAME device as the renderer
             if (@available(macOS 14.0, *)) {
                 _displayLink = [self displayLinkWithTarget:self selector:@selector(displayLinkFired:)];
@@ -183,8 +193,8 @@ static NSColor* colorFromARGB(uint32_t c) {
     _metalLayer.drawableSize = CGSizeMake(sz.width * scale, sz.height * scale);
 }
 
-// Redraw via whichever renderer is active. In Metal mode, just mark dirty —
-// the display link coalesces bursts of output into one render per frame.
+// Metal: mark dirty and let the display link coalesce a burst of output into
+// one frame. CPU: just invalidate.
 - (void)refresh {
     if (_metal && _renderer) {
         if (_displayLink) _needsRender = YES;
@@ -210,6 +220,7 @@ static NSColor* colorFromARGB(uint32_t c) {
 }
 
 - (BOOL)isFlipped { return YES; }            // top-left origin, like the grid
+- (BOOL)isOpaque  { return _opacity >= 1.0; } // translucent bg needs a non-opaque view
 - (BOOL)acceptsFirstResponder { return YES; }
 
 - (void)setFrameSize:(NSSize)newSize {
@@ -218,6 +229,49 @@ static NSColor* colorFromARGB(uint32_t c) {
     [self updateDrawableSize];
     [self refresh];
 }
+
+// Switch to a new font from the font panel: recompute metrics, rebuild the
+// Metal atlas (cell size is baked into it), reflow the grid.
+- (void)applyFont:(NSFont*)f {
+    if (!f) return;
+    _font = f;
+    NSFontManager* fm = [NSFontManager sharedFontManager];
+    _fontBold       = [fm convertFont:_font toHaveTrait:NSBoldFontMask];
+    _fontItalic     = [fm convertFont:_font toHaveTrait:NSItalicFontMask];
+    _fontBoldItalic = [fm convertFont:_fontBold toHaveTrait:NSItalicFontMask];
+    _fallbackFont   = [NSFont fontWithName:@"JetBrainsMono Nerd Font Mono" size:_font.pointSize];
+
+    NSDictionary* a = @{ NSFontAttributeName: _font };
+    _cellW = [@"M" sizeWithAttributes:a].width;
+    _cellH = ceil(_font.ascender - _font.descender + _font.leading);
+    if (_cellW < 1) _cellW = _font.pointSize * 0.6;
+    if (_cellH < 1) _cellH = _font.pointSize * 1.2;
+
+    if (_metal) {
+        CGFloat scale = self.window.backingScaleFactor ?: 1.0;
+        _renderer = [[MetalRenderer alloc] initWithFont:_font bold:_fontBold italic:_fontItalic
+                                             boldItalic:_fontBoldItalic fallback:_fallbackFont
+                                                  cellW:_cellW cellH:_cellH scale:scale];
+        if ([_renderer ready]) {
+            _renderer.caretColor = _cursorColor;
+            if (_metalLayer) _metalLayer.device = [_renderer mtlDevice];
+        } else { _renderer = nil; _metal = NO; }
+    }
+
+    // resize() preserves cell content, so existing text just re-renders at the
+    // new size instead of clearing.
+    _cols = _rows = 0;
+    [self rebuildTerminalForSize:self.bounds.size];
+    [self updateDrawableSize];
+    [self refresh];
+}
+
+// Sent down the responder chain by the macOS font panel.
+- (void)changeFont:(id)sender {
+    [self applyFont:[sender convertFont:_font]];
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem*)item { return YES; }
 
 - (void)scrollWheel:(NSEvent*)event {
     if (!_term) return;
@@ -234,7 +288,8 @@ static NSColor* colorFromARGB(uint32_t c) {
     [self refresh];
 }
 
-// ── Mouse selection ───────────────────────────────────────────────────
+#pragma mark - Selection
+
 - (void)cellForEvent:(NSEvent*)event row:(int*)row col:(int*)col {
     NSPoint p = [self convertPoint:event.locationInWindow fromView:nil];
     int r = (int)(p.y / _cellH);
@@ -303,16 +358,51 @@ static NSColor* colorFromARGB(uint32_t c) {
     [pb setString:out forType:NSPasteboardTypeString];
 }
 
+// Strip clipboard content of anything that could break out of a paste and
+// reach the shell as control input. Removes ESC (so an embedded ESC[201~ can't
+// close bracketed paste early — the classic paste-jacking vuln) and all other
+// C0 controls except tab/newline/carriage-return, which are legitimate text.
+static std::string sanitizePaste(const std::string& in) {
+    std::string out;
+    out.reserve(in.size());
+    for (unsigned char c : in) {
+        if (c == '\x1b' || c == '\x7f') continue;          // ESC, DEL
+        if (c < 0x20 && c != '\t' && c != '\n' && c != '\r') continue;
+        out.push_back((char)c);
+    }
+    return out;
+}
+
 - (void)pasteClipboard {
     if (!_pty) return;
     NSString* str = [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString];
     if (str.length == 0) return;
     const char* u = [str UTF8String];
     if (!u) return;
-    std::string data(u);
+    std::string data = sanitizePaste(std::string(u));
+    if (data.empty()) return;
+
+    // An embedded newline (one not at the very end) means the paste holds more
+    // than one command line and, without bracketed paste, would execute
+    // immediately. Confirm first — defends against "copy this" web buttons that
+    // smuggle multi-line payloads onto the clipboard.
+    bool bracketed = _term && _term->bracketedPaste();
+    size_t nl = data.find('\n');
+    bool multiline = nl != std::string::npos && nl + 1 < data.size();
+    if (multiline && !bracketed) {
+        NSAlert* a = [[NSAlert alloc] init];
+        a.messageText = @"Paste multiple lines?";
+        a.informativeText = @"The clipboard contains more than one line. Each "
+                            @"line may run as a separate command immediately.";
+        [a addButtonWithTitle:@"Paste"];
+        [a addButtonWithTitle:@"Cancel"];
+        if ([a runModal] != NSAlertFirstButtonReturn) return;
+    }
+
     // Bracketed paste: wrap so the shell treats it as literal text (newlines
-    // don't auto-execute) when the app has requested it (ESC[?2004h).
-    if (_term && _term->bracketedPaste())
+    // don't auto-execute) when the app has requested it (ESC[?2004h). Safe to
+    // wrap now that the payload can no longer contain ESC[201~.
+    if (bracketed)
         data = std::string("\x1b[200~") + data + std::string("\x1b[201~");
     _pty->writeInput(data);
 }
@@ -401,6 +491,10 @@ static NSColor* colorFromARGB(uint32_t c) {
                 if      ((a & kterm::renderer::ATTR_BOLD) && (a & kterm::renderer::ATTR_ITALIC)) f = _fontBoldItalic;
                 else if (a & kterm::renderer::ATTR_BOLD)   f = _fontBold;
                 else if (a & kterm::renderer::ATTR_ITALIC) f = _fontItalic;
+                // Fallback to the Nerd Font for glyphs the body font lacks.
+                if (_fallbackFont && ![[f coveredCharacterSet] longCharacterIsMember:cp]
+                                  &&  [[_fallbackFont coveredCharacterSet] longCharacterIsMember:cp])
+                    f = _fallbackFont;
 
                 NSMutableDictionary* attrs = [@{ NSFontAttributeName: f,
                                                  NSForegroundColorAttributeName: fg } mutableCopy];
@@ -433,13 +527,14 @@ static NSColor* colorFromARGB(uint32_t c) {
     if (s == 0 && _caretOn && _term->cursorVisible()) {
         int cr = grid.cursorRow();
         int cc = grid.cursorCol();
-        [[NSColor colorWithSRGBRed:0.55 green:0.78 blue:1.0 alpha:0.55] set];
+        [[_cursorColor colorWithAlphaComponent:0.55] set];
         NSRectFillUsingOperation(NSMakeRect(cc * _cellW, cr * _cellH, _cellW, _cellH),
                                  NSCompositingOperationSourceOver);
     }
 }
 
-// ── Keyboard → PTY ────────────────────────────────────────────────────
+#pragma mark - Keyboard
+
 - (void)keyDown:(NSEvent*)event {
     if (!_pty) return;
     _scrollOffset = 0;   // typing snaps back to the live bottom

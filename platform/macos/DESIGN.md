@@ -1,8 +1,7 @@
-# kterm — native macOS frontend
+# brain — native macOS frontend
 
-Goal: turn kterm into a nice, native macOS terminal in the spirit of Ghostty
-(native, fast, GPU-rendered) — **not** a Qt app. We keep the existing C++ core
-and replace only the frontend.
+Goal: a native, GPU-rendered macOS terminal in the spirit of Ghostty, not a Qt
+app. The existing C++ core is reused untouched; only the frontend is native.
 
 ## Architecture
 
@@ -13,50 +12,53 @@ PTY ──► PTY/PTYPlatform ──► Terminal ──► AnsiParser ──► 
         └────────────────────── │ ──────────────────────── │ ───────┘
                                  ▼ renderCallback           ▼ grid()
         ┌──────────── native Cocoa frontend (platform/macos) ────────┐
-        │  main_macos.mm   NSApplication + NSWindow                  │
-        │  TermView.mm     NSView: draws Grid, keyboard → PTY        │
+        │  main_macos.mm    NSApplication + NSWindow                 │
+        │  TermView.mm      NSView: input, CoreText draw, Metal      │
+        │  MetalRenderer.mm glyph atlas + batched GPU draw           │
+        │  Config.mm        ~/.config/brain/config                   │
         └────────────────────────────────────────────────────────────┘
 ```
 
-Reused, unchanged: `core/Terminal`, `parser/AnsiParser`, `renderer/Grid`+`Cell`,
-`pty/PTY`, `scrollback/ScrollbackBuffer`. Added `platform/macos/PTYPlatform.cpp`
-(forkpty via `<util.h>`, sets `TERM=xterm-256color`, login shell) and a cursor
-accessor on `Grid`.
+Reused unchanged: `core/Terminal`, `parser/AnsiParser`, `renderer/Grid`+`Cell`,
+`pty/PTY`, `scrollback/ScrollbackBuffer`. The macOS layer adds
+`platform/macos/PTYPlatform.cpp` (forkpty via `<util.h>`, `TERM=xterm-256color`,
+login shell) plus the Cocoa/Metal files above. The core namespace stays `kterm::`.
 
 ## Build / run
 
 ```bash
-./platform/macos/build.sh     # -> ./kterm-native  (clang, no Qt, no CMake)
-./kterm-native
+./platform/macos/build.sh     # clang, no Qt, no CMake -> ./brain.app
+open brain.app
 ```
 
-## Milestone 1 — native shell (DONE)
+`open brain.app --args --metal` forces the GPU path (also `BRAIN_RENDERER=metal`
+or `renderer = metal` in the config). The CPU CoreText path is the fallback.
 
-Native Cocoa window running a real shell, drawn with CoreText/AppKit:
-- macOS PTY (forkpty) spawns `$SHELL` as a login shell.
-- PTY output → `Terminal::onPTYOutput` → ANSI parse → `Grid`; repaint marshalled
-  to the main thread.
-- `TermView` draws the grid (per-cell glyph + bg) with the cell's fg/bg color,
-  flipped to top-left origin; translucent block caret.
-- Keyboard → PTY: printable chars, Return, Backspace, arrows, Home/End.
-- Live resize recomputes cols/rows and notifies the PTY (`TIOCSWINSZ`).
+## Rendering
 
-## Known limits (M1) → backlog
+Two paths share the same `Grid`. CPU draws per-cell glyphs with CoreText. Metal
+rasterizes glyphs once into an R8 atlas and draws the screen as one batched set
+of quads (background, glyphs, selection, caret).
 
-- **Rendering is CPU CoreText.** M2 = a **Metal glyph-atlas renderer** (GPU) for
-  Ghostty-class speed — the headline next step.
-- **ASCII-only cells.** `Cell.ch` is a `char`; widen to a `uint32_t` codepoint
-  (+ a width field) for UTF-8 / wide / emoji.
-- No scrollback *rendering* (buffer exists; need a scroll viewport + wheel).
-- No text attributes (bold/italic/underline/inverse) or cursor styles/blink.
-- No selection/copy-paste, tabs, or splits.
-- Theme/config not wired into the native frontend yet (hardcoded Menlo 13, dark).
+Two things that bite in the Metal path:
+- The vertex struct field order must match the shader's `VIn` so `float4 color`
+  lands 16-byte aligned. Mismatched padding reads garbage and nothing draws.
+- `CAMetalLayer` must be layer-hosting (assign `self.layer` before `wantsLayer`),
+  and the layer and renderer must share one `MTLDevice`.
 
-## Roadmap
+Frame pacing: a `CADisplayLink` coalesces bursts of output into one render per
+refresh. Grid geometry is cached in a GPU buffer and only rebuilt when content,
+scroll, size, or the default colors change; the caret/selection overlay is the
+only thing rebuilt on an idle blink.
 
-- **M2** Metal renderer: glyph atlas (CoreText rasterize → texture), instanced
-  cell quads, damage tracking. Swap `TermView`'s `drawRect` for a `CAMetalLayer`.
-- **M3** Unicode (wide `Cell`), scrollback viewport + smooth scroll, selection +
-  clipboard, text attributes, cursor styles.
-- **M4** Ghostty-grade polish: ligatures, theme/config files, tabs + splits,
-  font fallback, ligature-aware shaping, padding/opacity/blur, fast startup.
+## State
+
+Working: native Cocoa shell, full SGR (bold/italic/underline/inverse,
+16/256/truecolor), UTF-8, scrollback + wheel, mouse selection, copy/paste,
+bracketed paste, Metal renderer, config file (font, colors, opacity, renderer),
+live font panel (Cmd-T) with Nerd-Font fallback, content-preserving resize.
+
+Parsed but not surfaced: OSC 133 command blocks (marks tracked; gutter UI pulled).
+
+Next: wide-char width, tabs/splits, theme presets, config live-reload, true
+scrollback reflow.
