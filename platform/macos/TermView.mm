@@ -33,6 +33,7 @@ static NSColor* colorFromARGB(uint32_t c) {
     CGFloat    _cellH;
     int        _cols;
     int        _rows;
+    int        _scrollOffset;   // rows scrolled up from the live bottom (0 = bottom)
     std::string _shell;
 }
 
@@ -133,18 +134,42 @@ static NSColor* colorFromARGB(uint32_t c) {
     [self setNeedsDisplay:YES];
 }
 
+- (void)scrollWheel:(NSEvent*)event {
+    if (!_term) return;
+    CGFloat dy = event.scrollingDeltaY;
+    if (dy == 0) return;
+    CGFloat perLine = event.hasPreciseScrollingDeltas ? _cellH : 1.0;
+    int lines = (int)(dy / perLine);
+    if (lines == 0) lines = (dy > 0 ? 1 : -1);   // positive dy = scroll up = older
+    int H = _term->grid().historyLines();
+    _scrollOffset += lines;
+    if (_scrollOffset < 0) _scrollOffset = 0;
+    if (_scrollOffset > H) _scrollOffset = H;
+    [self setNeedsDisplay:YES];
+}
+
 - (void)drawRect:(NSRect)dirtyRect {
     [_defaultBg set];
     NSRectFill(self.bounds);
 
     if (!_term) return;
-    const auto& rows = _term->grid().rows();
+    const auto& grid = _term->grid();
+    int H = grid.historyLines();
+    int s = _scrollOffset; if (s < 0) s = 0; if (s > H) s = H;
+    const auto& live = grid.rows();
+    int R = (int)live.size();
 
-    for (int r = 0; r < (int)rows.size(); ++r) {
-        const auto& line = rows[r];
-        CGFloat y = r * _cellH;
-        for (int c = 0; c < (int)line.size(); ++c) {
-            const kterm::renderer::Cell& cell = line[c];
+    for (int vr = 0; vr < R; ++vr) {
+        // Map this visible row to [history(0..H-1) ++ live(0..R-1)], offset up by s.
+        int idx = (H - s) + vr;
+        if (idx < 0) continue;
+        const std::vector<kterm::renderer::Cell>* line;
+        if (idx < H) line = &grid.historyRow(idx);
+        else { int lr = idx - H; if (lr >= R) continue; line = &live[lr]; }
+
+        CGFloat y = vr * _cellH;
+        for (int c = 0; c < (int)line->size(); ++c) {
+            const kterm::renderer::Cell& cell = (*line)[c];
             CGFloat x = c * _cellW;
             uint8_t a = cell.attrs;
 
@@ -182,17 +207,20 @@ static NSColor* colorFromARGB(uint32_t c) {
         }
     }
 
-    // Caret (simple block, translucent).
-    int cr = _term->grid().cursorRow();
-    int cc = _term->grid().cursorCol();
-    [[NSColor colorWithSRGBRed:0.55 green:0.78 blue:1.0 alpha:0.55] set];
-    NSRectFillUsingOperation(NSMakeRect(cc * _cellW, cr * _cellH, _cellW, _cellH),
-                             NSCompositingOperationSourceOver);
+    // Caret (only when viewing the live bottom).
+    if (s == 0) {
+        int cr = grid.cursorRow();
+        int cc = grid.cursorCol();
+        [[NSColor colorWithSRGBRed:0.55 green:0.78 blue:1.0 alpha:0.55] set];
+        NSRectFillUsingOperation(NSMakeRect(cc * _cellW, cr * _cellH, _cellW, _cellH),
+                                 NSCompositingOperationSourceOver);
+    }
 }
 
 // ── Keyboard → PTY ────────────────────────────────────────────────────
 - (void)keyDown:(NSEvent*)event {
     if (!_pty) return;
+    _scrollOffset = 0;   // typing snaps back to the live bottom
     NSString* chars = event.characters;
     if (chars.length == 0) return;
 

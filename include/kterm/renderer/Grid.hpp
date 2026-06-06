@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <deque>
 #include "Cell.hpp"
 
 namespace kterm::renderer {
@@ -45,6 +46,10 @@ public:
     int cursorCol() const { return m_cursorCol; }
     int cols() const { return m_cols; }
     int rowCount() const { return m_rows; }
+
+    // Scrollback history (rows that scrolled off the top).
+    int historyLines() const { return (int)m_history.size(); }
+    const std::vector<Cell>& historyRow(int i) const { return m_history[i]; }
 private:
     int m_cols;
     int m_rows;
@@ -61,6 +66,7 @@ private:
     uint32_t palette256[256];
 
     std::vector<std::vector<Cell>> m_cells;
+    std::deque<std::vector<Cell>> m_history;   // scrolled-off rows (oldest..newest)
 
     void clampCursor();
     void lineFeed();   // advance one row, scrolling at the bottom

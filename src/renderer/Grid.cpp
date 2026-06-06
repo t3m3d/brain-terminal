@@ -90,6 +90,8 @@ void Grid::eraseToScreenEnd() {
 // new bottom row. Called when the cursor advances past the last row.
 void Grid::scrollUp() {
     if (m_rows <= 0) return;
+    m_history.push_back(m_cells[0]);                  // keep the scrolled-off row
+    if (m_history.size() > 5000) m_history.pop_front();
     for (int r = 0; r < m_rows - 1; ++r)
         m_cells[r] = m_cells[r + 1];
     m_cells[m_rows - 1].assign(m_cols, Cell());
