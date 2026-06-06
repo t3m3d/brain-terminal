@@ -60,7 +60,10 @@ static NSColor* colorFromARGB(uint32_t c) {
     if (_cellH < 1) _cellH = fontSize * 1.2;
 
     _shell = std::string([shell UTF8String]);
-    [self rebuildTerminalForSize:frame.size];
+    // Defer terminal/PTY creation until the view is in the window with its
+    // real laid-out size (see viewDidMoveToWindow) — spawning here with the
+    // pre-layout frame can give the shell a slightly-wrong column count, so
+    // p10k draws the prompt frame short until the first resize.
 
     return self;
 }
@@ -93,9 +96,30 @@ static NSColor* colorFromARGB(uint32_t c) {
         });
 
         _pty->spawnShell(_shell);
+
+        // Startup nudge: p10k's "instant prompt" draws a cached prompt at the
+        // previous terminal's width and only repaints on a real SIGWINCH.
+        // Once the shell has loaded, briefly wobble the row count to force one
+        // SIGWINCH so the prompt redraws at our actual column width.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            if (u->_pty && u->_term && u->_rows > 1) {
+                u->_pty->resize(u->_cols, u->_rows - 1);
+                u->_pty->resize(u->_cols, u->_rows);
+            }
+        });
     } else {
         _term->resize(cols, rows);
         if (_pty) _pty->resize(cols, rows);
+    }
+}
+
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    // Spawn the shell once the view has its real on-screen size, so the PTY
+    // gets the correct column count from the first prompt.
+    if (self.window && !_term) {
+        [self rebuildTerminalForSize:self.bounds.size];
     }
 }
 
