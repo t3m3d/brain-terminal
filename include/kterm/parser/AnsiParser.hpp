@@ -35,6 +35,11 @@ enum class EscapeType {
     // Full SGR (colors + text attributes); all params in .params
     SGR,
 
+    // DEC/ANSI mode set/reset (ESC[...h / ESC[...l); .value = mode,
+    // .privateMode = true for ESC[?...
+    SetMode,
+    ResetMode,
+
     Unknown
 };
 
@@ -58,6 +63,9 @@ struct EscapeSequence {
 
     // All SGR parameters (for EscapeType::SGR), applied left-to-right.
     std::vector<int> params;
+
+    // True for ESC[? ... (DEC private mode), used with Set/ResetMode.
+    bool privateMode = false;
 };
 
 class AnsiParser {

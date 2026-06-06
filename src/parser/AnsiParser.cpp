@@ -76,6 +76,7 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
     if (!paramsStr.empty() &&
         (paramsStr[0] == '?' || paramsStr[0] == '>' ||
          paramsStr[0] == '=' || paramsStr[0] == '<')) {
+        if (paramsStr[0] == '?') esc.privateMode = true;
         paramsStr.erase(0, 1);
     }
 
@@ -133,6 +134,10 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
             esc.params = params.empty() ? std::vector<int>{0} : params;
             break;
         }
+
+        // Mode set/reset (e.g. ESC[?2004h bracketed paste, ESC[?25l hide cursor)
+        case 'h': esc.type = EscapeType::SetMode;   esc.value = p(0, 0); break;
+        case 'l': esc.type = EscapeType::ResetMode; esc.value = p(0, 0); break;
 
         default:
             esc.type = EscapeType::Unknown;

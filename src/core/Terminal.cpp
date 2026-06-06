@@ -145,6 +145,16 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
             m_grid.resetAttributes();
             break;
 
+        case EscapeType::SetMode:
+        case EscapeType::ResetMode: {
+            bool on = (seq.type == EscapeType::SetMode);
+            if (seq.privateMode) {
+                if (seq.value == 2004)     m_bracketedPaste = on;   // bracketed paste
+                else if (seq.value == 25)  m_cursorVisible  = on;   // cursor show/hide
+            }
+            break;
+        }
+
         case EscapeType::SGR: {
             const auto& ps = seq.params;
             for (size_t i = 0; i < ps.size(); ++i) {

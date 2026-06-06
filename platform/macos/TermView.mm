@@ -39,6 +39,8 @@ static NSColor* colorFromARGB(uint32_t c) {
     BOOL       _hasSelection;
     int        _selStartRow, _selStartCol;
     int        _selEndRow,   _selEndCol;
+    BOOL       _caretOn;
+    NSTimer*   _blinkTimer;
     std::string _shell;
 }
 
@@ -114,6 +116,13 @@ static NSColor* colorFromARGB(uint32_t c) {
                 u->_pty->resize(u->_cols, u->_rows);
             }
         });
+
+        // Blinking caret.
+        _caretOn = YES;
+        _blinkTimer = [NSTimer scheduledTimerWithTimeInterval:0.53 repeats:YES block:^(NSTimer* t){
+            u->_caretOn = !u->_caretOn;
+            if (u->_scrollOffset == 0) [u setNeedsDisplay:YES];
+        }];
     } else {
         _term->resize(cols, rows);
         if (_pty) _pty->resize(cols, rows);
@@ -228,7 +237,13 @@ static NSColor* colorFromARGB(uint32_t c) {
     NSString* str = [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString];
     if (str.length == 0) return;
     const char* u = [str UTF8String];
-    if (u) _pty->writeInput(std::string(u));
+    if (!u) return;
+    std::string data(u);
+    // Bracketed paste: wrap so the shell treats it as literal text (newlines
+    // don't auto-execute) when the app has requested it (ESC[?2004h).
+    if (_term && _term->bracketedPaste())
+        data = std::string("\x1b[200~") + data + std::string("\x1b[201~");
+    _pty->writeInput(data);
 }
 
 - (BOOL)performKeyEquivalent:(NSEvent*)event {
@@ -342,8 +357,8 @@ static NSColor* colorFromARGB(uint32_t c) {
         }
     }
 
-    // Caret (only when viewing the live bottom).
-    if (s == 0) {
+    // Caret (live bottom only, when visible + in the "on" blink phase).
+    if (s == 0 && _caretOn && _term->cursorVisible()) {
         int cr = grid.cursorRow();
         int cc = grid.cursorCol();
         [[NSColor colorWithSRGBRed:0.55 green:0.78 blue:1.0 alpha:0.55] set];
@@ -357,6 +372,7 @@ static NSColor* colorFromARGB(uint32_t c) {
     if (!_pty) return;
     _scrollOffset = 0;   // typing snaps back to the live bottom
     _hasSelection = NO;  // and clears any selection
+    _caretOn = YES;      // keep the caret solid while actively typing
     NSString* chars = event.characters;
     if (chars.length == 0) return;
 
@@ -381,6 +397,7 @@ static NSColor* colorFromARGB(uint32_t c) {
 }
 
 - (void)dealloc {
+    [_blinkTimer invalidate];
     delete _term;
     delete _pty;
 }
