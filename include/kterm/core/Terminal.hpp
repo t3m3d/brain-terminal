@@ -48,6 +48,34 @@ public:
         return it == m_blockMarks.end() ? -1 : it->second;
     }
 
+    // Absolute line of the prompt-start of the block CONTAINING absLine (the
+    // nearest mark at or above it), or -1 if none. Defines a block's top edge.
+    long blockStartForLine(long absLine) const {
+        if (m_blockMarks.empty()) return -1;
+        auto it = m_blockMarks.upper_bound(absLine);
+        if (it == m_blockMarks.begin()) return -1;
+        --it;
+        return it->first;
+    }
+
+    // Nearest prompt-start strictly above / below absLine (for Cmd-Up/Down
+    // navigation), or -1 if there is none in that direction.
+    long prevPromptLine(long absLine) const {
+        auto it = m_blockMarks.lower_bound(absLine);   // first mark >= absLine
+        if (it == m_blockMarks.begin()) return -1;
+        --it;
+        return it->first;
+    }
+    long nextPromptLine(long absLine) const {
+        auto it = m_blockMarks.upper_bound(absLine);   // first mark > absLine
+        return it == m_blockMarks.end() ? -1 : it->first;
+    }
+
+    // First/last prompt-start lines, or -1 when there are no marks. lastPrompt
+    // is the "active" (most recent) command, lightly marked even without hover.
+    long firstPromptLine() const { return m_blockMarks.empty() ? -1 : m_blockMarks.begin()->first; }
+    long lastPromptLine()  const { return m_blockMarks.empty() ? -1 : m_blockMarks.rbegin()->first; }
+
 private:
     int m_cols;
     int m_rows;
