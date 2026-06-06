@@ -9,6 +9,27 @@
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)sender { return YES; }
 @end
 
+// Minimal menu bar so Cmd-C/V/A route to the first responder (TermView).
+static void installMenu(NSApplication* app) {
+    NSMenu* mainMenu = [[NSMenu alloc] init];
+
+    NSMenuItem* appItem = [[NSMenuItem alloc] init];
+    [mainMenu addItem:appItem];
+    NSMenu* appMenu = [[NSMenu alloc] init];
+    [appMenu addItemWithTitle:@"Quit kterm" action:@selector(terminate:) keyEquivalent:@"q"];
+    [appItem setSubmenu:appMenu];
+
+    NSMenuItem* editItem = [[NSMenuItem alloc] init];
+    [mainMenu addItem:editItem];
+    NSMenu* editMenu = [[NSMenu alloc] initWithTitle:@"Edit"];
+    [editMenu addItemWithTitle:@"Copy"       action:@selector(copy:)      keyEquivalent:@"c"];
+    [editMenu addItemWithTitle:@"Paste"      action:@selector(paste:)     keyEquivalent:@"v"];
+    [editMenu addItemWithTitle:@"Select All" action:@selector(selectAll:) keyEquivalent:@"a"];
+    [editItem setSubmenu:editMenu];
+
+    [app setMainMenu:mainMenu];
+}
+
 int main(int argc, const char* argv[]) {
     @autoreleasepool {
         NSApplication* app = [NSApplication sharedApplication];
@@ -16,6 +37,7 @@ int main(int argc, const char* argv[]) {
 
         TerkAppDelegate* delegate = [[TerkAppDelegate alloc] init];
         [app setDelegate:delegate];
+        installMenu(app);
 
         NSRect frame = NSMakeRect(0, 0, 900, 560);
         NSWindow* window =

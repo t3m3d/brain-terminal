@@ -236,8 +236,37 @@ static NSColor* colorFromARGB(uint32_t c) {
         NSString* ch = event.charactersIgnoringModifiers;
         if ([ch isEqualToString:@"c"] && _hasSelection) { [self copySelection]; return YES; }
         if ([ch isEqualToString:@"v"]) { [self pasteClipboard]; return YES; }
+        if ([ch isEqualToString:@"a"]) { [self selectAll:nil]; return YES; }
     }
     return [super performKeyEquivalent:event];
+}
+
+// Let a drag start (and select) even when the click also activates the window.
+- (BOOL)acceptsFirstMouse:(NSEvent*)event { return YES; }
+
+// Right-click (or control-click / two-finger tap) context menu.
+- (NSMenu*)menuForEvent:(NSEvent*)event {
+    NSMenu* m = [[NSMenu alloc] init];
+    NSMenuItem* copyItem = [m addItemWithTitle:@"Copy" action:@selector(copy:) keyEquivalent:@""];
+    [copyItem setTarget:self];
+    [copyItem setEnabled:_hasSelection];
+    NSMenuItem* pasteItem = [m addItemWithTitle:@"Paste" action:@selector(paste:) keyEquivalent:@""];
+    [pasteItem setTarget:self];
+    [m addItem:[NSMenuItem separatorItem]];
+    NSMenuItem* allItem = [m addItemWithTitle:@"Select All" action:@selector(selectAll:) keyEquivalent:@""];
+    [allItem setTarget:self];
+    return m;
+}
+
+// Standard responder actions (routed by the Edit menu / Cmd-C/V/A).
+- (void)copy:(id)sender  { [self copySelection]; }
+- (void)paste:(id)sender { [self pasteClipboard]; }
+- (void)selectAll:(id)sender {
+    if (!_term) return;
+    _selStartRow = 0; _selStartCol = 0;
+    _selEndRow = _rows - 1; _selEndCol = _cols;
+    _hasSelection = YES;
+    [self setNeedsDisplay:YES];
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
