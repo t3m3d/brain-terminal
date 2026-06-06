@@ -70,16 +70,30 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
     char final = seq.back();
     std::string paramsStr = seq.substr(2, seq.size() - 3);
 
-    // Split parameters
+    // Strip a leading private-mode / intermediate marker (?, >, =, <). Shells
+    // emit ESC[?25l, ESC[?2004h, etc. constantly; we don't act on private
+    // modes yet, but must not feed the marker to the integer parser.
+    if (!paramsStr.empty() &&
+        (paramsStr[0] == '?' || paramsStr[0] == '>' ||
+         paramsStr[0] == '=' || paramsStr[0] == '<')) {
+        paramsStr.erase(0, 1);
+    }
+
+    // Split parameters. Parse each as a leading integer, tolerating empty,
+    // colon sub-params (38:2:r:g:b), and anything non-numeric WITHOUT throwing
+    // — a bad CSI param must never crash the terminal.
     std::vector<int> params;
     if (!paramsStr.empty()) {
         std::stringstream ss(paramsStr);
         std::string part;
         while (std::getline(ss, part, ';')) {
-            if (!part.empty())
-                params.push_back(std::stoi(part));
-            else
-                params.push_back(0);
+            int v = 0;
+            try {
+                if (!part.empty()) v = std::stoi(part);
+            } catch (...) {
+                v = 0;
+            }
+            params.push_back(v);
         }
     }
 
