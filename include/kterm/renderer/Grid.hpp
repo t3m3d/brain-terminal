@@ -31,6 +31,12 @@ public:
     void resetAttributes();
 
     const std::vector<std::vector<Cell>>& rows() const;
+
+    // Cursor position (for the renderer to draw the caret).
+    int cursorRow() const { return m_cursorRow; }
+    int cursorCol() const { return m_cursorCol; }
+    int cols() const { return m_cols; }
+    int rowCount() const { return m_rows; }
 private:
     int m_cols;
     int m_rows;
