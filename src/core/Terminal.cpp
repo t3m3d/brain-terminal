@@ -97,14 +97,24 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
         }
 
         case EscapeType::ClearScreen:
-            m_grid.clear();
-            m_grid.setCursor(0, 0);
+            // ESC[J: only 2/3 clear the whole screen. 0 (the one shells emit on
+            // every prompt redraw) erases cursor -> end of screen, not all.
+            if (seq.value >= 2) {
+                m_grid.clear();
+                m_grid.setCursor(0, 0);
+            } else {
+                m_grid.eraseToScreenEnd();
+            }
             break;
 
         case EscapeType::ClearLine:
-            // ESC[K = erase cursor -> end of line (using the grid's real
-            // cursor, not Terminal's stale m_cursorRow).
-            m_grid.eraseToLineEnd();
+            // ESC[K: 2 = whole line; otherwise cursor -> end of line. Uses the
+            // grid's real cursor, not Terminal's stale m_cursorRow.
+            if (seq.value >= 2) {
+                m_grid.clearLine(m_grid.cursorRow());
+            } else {
+                m_grid.eraseToLineEnd();
+            }
             break;
 
         case EscapeType::SetFGColor:

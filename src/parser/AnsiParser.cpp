@@ -117,9 +117,12 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
             esc.col = p(1,1);
             break;
 
-        // Clear screen / line
-        case 'J': esc.type = EscapeType::ClearScreen; break;
-        case 'K': esc.type = EscapeType::ClearLine; break;
+        // Clear screen / line. Carry the mode in .value:
+        //   J: 0/none = cursor->end of screen, 1 = start->cursor, 2/3 = all.
+        //   K: 0/none = cursor->end of line,   1 = start->cursor, 2   = whole line.
+        // (Default 0 — NOT a full clear; shells emit ESC[J / ESC[K constantly.)
+        case 'J': esc.type = EscapeType::ClearScreen; esc.value = p(0, 0); break;
+        case 'K': esc.type = EscapeType::ClearLine;   esc.value = p(0, 0); break;
 
         // SGR (colors, attributes)
         case 'm': {
