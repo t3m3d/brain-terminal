@@ -60,6 +60,7 @@ private:
     uint32_t m_currentFG;
     uint32_t m_currentBG;
     uint8_t  m_currentAttrs = 0;   // CellAttr flags applied to new cells
+    bool     m_wrapPending = false; // deferred wrap: cursor parked in last column
 
     // Palettes
     uint32_t palette16[16];

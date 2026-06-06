@@ -1,6 +1,6 @@
 #import "TermView.h"
 #import "MetalRenderer.h"
-#import <QuartzCore/CAMetalLayer.h>
+#import <QuartzCore/QuartzCore.h>
 #import <Metal/Metal.h>
 #include <vector>
 #include <string>
@@ -48,6 +48,8 @@ static NSColor* colorFromARGB(uint32_t c) {
     BOOL       _metal;             // KTERM_RENDERER=metal
     CAMetalLayer* _metalLayer;
     MetalRenderer* _renderer;
+    CADisplayLink* _displayLink;   // coalesces Metal renders to the refresh rate
+    BOOL       _needsRender;
     std::string _shell;
 }
 
@@ -158,7 +160,14 @@ static NSColor* colorFromARGB(uint32_t c) {
                                              boldItalic:_fontBoldItalic
                                                   cellW:_cellW cellH:_cellH scale:scale];
         if (![_renderer ready]) { NSLog(@"kterm: Metal unavailable, using CPU"); _metal = NO; _renderer = nil; }
-        else if (_metalLayer) _metalLayer.device = [_renderer mtlDevice];  // SAME device as the renderer
+        else {
+            if (_metalLayer) _metalLayer.device = [_renderer mtlDevice];  // SAME device as the renderer
+            if (@available(macOS 14.0, *)) {
+                _displayLink = [self displayLinkWithTarget:self selector:@selector(displayLinkFired:)];
+                [_displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+            }
+            _needsRender = YES;   // draw the first frame
+        }
         [self updateDrawableSize];
     }
     // Spawn the shell once the view has its real on-screen size, so the PTY
@@ -174,10 +183,19 @@ static NSColor* colorFromARGB(uint32_t c) {
     _metalLayer.drawableSize = CGSizeMake(sz.width * scale, sz.height * scale);
 }
 
-// Redraw via whichever renderer is active.
+// Redraw via whichever renderer is active. In Metal mode, just mark dirty —
+// the display link coalesces bursts of output into one render per frame.
 - (void)refresh {
-    if (_metal && _renderer) [self renderMetal];
-    else [self setNeedsDisplay:YES];
+    if (_metal && _renderer) {
+        if (_displayLink) _needsRender = YES;
+        else [self renderMetal];          // no display link available: render now
+    } else {
+        [self setNeedsDisplay:YES];
+    }
+}
+
+- (void)displayLinkFired:(CADisplayLink*)link {
+    if (_needsRender) { _needsRender = NO; [self renderMetal]; }
 }
 
 - (void)renderMetal {
@@ -452,6 +470,7 @@ static NSColor* colorFromARGB(uint32_t c) {
 
 - (void)dealloc {
     [_blinkTimer invalidate];
+    [_displayLink invalidate];
     delete _term;
     delete _pty;
 }

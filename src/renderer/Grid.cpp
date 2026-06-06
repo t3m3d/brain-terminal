@@ -113,24 +113,37 @@ void Grid::putChar(char c) {
 void Grid::putCodepoint(uint32_t cp) {
     if (cp == '\n') {                // line feed -> next row, column 0
         m_cursorCol = 0;
+        m_wrapPending = false;
         lineFeed();
         return;
     }
     if (cp == '\r') {                // carriage return -> column 0
         m_cursorCol = 0;
+        m_wrapPending = false;
         return;
     }
     if (cp == '\b') {                // backspace -> move left (no erase)
-        if (m_cursorCol > 0) m_cursorCol--;
+        if (m_wrapPending) m_wrapPending = false;
+        else if (m_cursorCol > 0) m_cursorCol--;
         return;
     }
     if (cp == '\t') {               // tab -> next 8-column stop
+        m_wrapPending = false;
         m_cursorCol = ((m_cursorCol / 8) + 1) * 8;
         if (m_cursorCol >= m_cols) m_cursorCol = m_cols - 1;
         return;
     }
     if (cp < 0x20 || cp == 0x7f) {  // ignore other control chars (bell, etc.)
         return;
+    }
+
+    // Deferred ("phantom") wrap: a glyph in the last column parks the cursor
+    // there; the actual wrap happens only when the NEXT glyph arrives. This is
+    // standard VT behavior — without it, zsh's prompt cleanup leaves a stray %.
+    if (m_wrapPending) {
+        m_cursorCol = 0;
+        lineFeed();
+        m_wrapPending = false;
     }
 
     if (m_cursorRow < m_rows && m_cursorCol < m_cols) {
@@ -141,11 +154,8 @@ void Grid::putCodepoint(uint32_t cp) {
         cell.attrs = m_currentAttrs;
     }
 
-    m_cursorCol++;
-    if (m_cursorCol >= m_cols) {     // wrap to next line (scroll if needed)
-        m_cursorCol = 0;
-        lineFeed();
-    }
+    if (m_cursorCol + 1 >= m_cols) m_wrapPending = true;  // park in last column
+    else                          m_cursorCol++;
 }
 
 void Grid::cursorUp(int n) {
@@ -214,6 +224,7 @@ void Grid::resetAttributes() {
 }
 
 void Grid::clampCursor() {
+    m_wrapPending = false;   // any explicit cursor move cancels a deferred wrap
     m_cursorRow = std::clamp(m_cursorRow, 0, m_rows - 1);
     m_cursorCol = std::clamp(m_cursorCol, 0, m_cols - 1);
 }

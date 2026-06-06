@@ -162,8 +162,10 @@ fragment float4 f_main(VOut in [[stage_in]],
 
 - (void)addGlyph:(GlyphInfo)gi x:(float)x y:(float)y r:(float)r g:(float)gg b:(float)b {
     float w = gi.w, h = gi.h;
-    MVertex v0{x,y,gi.u0,gi.v0,r,gg,b,1}, v1{x+w,y,gi.u1,gi.v0,r,gg,b,1}, v2{x,y+h,gi.u0,gi.v1,r,gg,b,1};
-    MVertex v3{x+w,y,gi.u1,gi.v0,r,gg,b,1}, v4{x+w,y+h,gi.u1,gi.v1,r,gg,b,1}, v5{x,y+h,gi.u0,gi.v1,r,gg,b,1};
+    // V flipped (top quad edge samples gi.v1): CoreGraphics rasters are bottom-up
+    // in memory, Metal samples top-down, so the atlas tile is stored upside down.
+    MVertex v0{x,y,gi.u0,gi.v1,r,gg,b,1}, v1{x+w,y,gi.u1,gi.v1,r,gg,b,1}, v2{x,y+h,gi.u0,gi.v0,r,gg,b,1};
+    MVertex v3{x+w,y,gi.u1,gi.v1,r,gg,b,1}, v4{x+w,y+h,gi.u1,gi.v0,r,gg,b,1}, v5{x,y+h,gi.u0,gi.v0,r,gg,b,1};
     _verts->insert(_verts->end(), {v0,v1,v2,v3,v4,v5});
 }
 
