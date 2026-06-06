@@ -31,9 +31,11 @@ int main(int argc, const char* argv[]) {
         const char* shellEnv = getenv("SHELL");
         NSString* shell = shellEnv ? [NSString stringWithUTF8String:shellEnv] : @"/bin/zsh";
 
+        // Prefer a Nerd Font (powerline/icon glyphs for prompts like p10k);
+        // TermView falls back to the system monospaced font if it's absent.
         TermView* view = [[TermView alloc] initWithFrame:frame
                                                    shell:shell
-                                                fontName:@"Menlo"
+                                                fontName:@"JetBrainsMono Nerd Font Mono"
                                                 fontSize:13.0];
         [window setContentView:view];
         [window makeFirstResponder:view];
