@@ -126,65 +126,11 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
 
         // SGR (colors, attributes)
         case 'm': {
-            if (params.empty()) {
-                esc.type = EscapeType::ResetAttributes;
-                break;
-            }
-
-            int mode = p(0);
-
-            // Reset
-            if (mode == 0) {
-                esc.type = EscapeType::ResetAttributes;
-                break;
-            }
-
-            // 16-color FG
-            if (mode >= 30 && mode <= 37) {
-                esc.type = EscapeType::SetFGColor;
-                esc.color = mode - 30;
-                break;
-            }
-
-            // 16-color BG
-            if (mode >= 40 && mode <= 47) {
-                esc.type = EscapeType::SetBGColor;
-                esc.color = mode - 40;
-                break;
-            }
-
-            // 256-color FG: 38;5;N
-            if (mode == 38 && p(1) == 5 && params.size() >= 3) {
-                esc.type = EscapeType::SetFGColor256;
-                esc.color = p(2);
-                break;
-            }
-
-            // 256-color BG: 48;5;N
-            if (mode == 48 && p(1) == 5 && params.size() >= 3) {
-                esc.type = EscapeType::SetBGColor256;
-                esc.color = p(2);
-                break;
-            }
-
-            // Truecolor FG: 38;2;R;G;B
-            if (mode == 38 && p(1) == 2 && params.size() >= 5) {
-                esc.type = EscapeType::SetFGTrueColor;
-                esc.r = p(2);
-                esc.g = p(3);
-                esc.b = p(4);
-                break;
-            }
-
-            // Truecolor BG: 48;2;R;G;B
-            if (mode == 48 && p(1) == 2 && params.size() >= 5) {
-                esc.type = EscapeType::SetBGTrueColor;
-                esc.r = p(2);
-                esc.g = p(3);
-                esc.b = p(4);
-                break;
-            }
-
+            // Emit the full SGR parameter list. Terminal applies colors AND
+            // text attributes (bold/italic/underline/inverse) left-to-right;
+            // an empty list means reset ([0]).
+            esc.type = EscapeType::SGR;
+            esc.params = params.empty() ? std::vector<int>{0} : params;
             break;
         }
 

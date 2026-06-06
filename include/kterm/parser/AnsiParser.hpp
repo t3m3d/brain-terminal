@@ -32,6 +32,9 @@ enum class EscapeType {
     // Reset
     ResetAttributes,
 
+    // Full SGR (colors + text attributes); all params in .params
+    SGR,
+
     Unknown
 };
 
@@ -52,6 +55,9 @@ struct EscapeSequence {
     int r = 0;
     int g = 0;
     int b = 0;
+
+    // All SGR parameters (for EscapeType::SGR), applied left-to-right.
+    std::vector<int> params;
 };
 
 class AnsiParser {

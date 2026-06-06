@@ -136,6 +136,7 @@ void Grid::putCodepoint(uint32_t cp) {
         cell.ch = cp;
         cell.fg = m_currentFG;
         cell.bg = m_currentBG;
+        cell.attrs = m_currentAttrs;
     }
 
     m_cursorCol++;
@@ -199,9 +200,15 @@ void Grid::setBGTrue(int r, int g, int b) {
     m_currentBG = (0xFF << 24) | (r << 16) | (g << 8) | b;
 }
 
+void Grid::setFGDefault() { m_currentFG = 0xFFFFFFFF; }  // sentinel -> renderer default fg
+void Grid::setBGDefault() { m_currentBG = 0x00000000; }  // alpha 0 -> renderer default bg
+void Grid::enableAttr(uint8_t flag)  { m_currentAttrs |= flag; }
+void Grid::disableAttr(uint8_t flag) { m_currentAttrs &= ~flag; }
+
 void Grid::resetAttributes() {
-    m_currentFG = palette16[7]; // white
-    m_currentBG = palette16[0]; // black
+    m_currentFG = 0xFFFFFFFF;   // default fg sentinel
+    m_currentBG = 0x00000000;   // default bg (transparent)
+    m_currentAttrs = 0;
 }
 
 void Grid::clampCursor() {

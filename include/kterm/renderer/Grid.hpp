@@ -32,6 +32,10 @@ public:
     void setBG256(int index);
     void setFGTrue(int r, int g, int b);
     void setBGTrue(int r, int g, int b);
+    void setFGDefault();
+    void setBGDefault();
+    void enableAttr(uint8_t flag);   // CellAttr bit
+    void disableAttr(uint8_t flag);
     void resetAttributes();
 
     const std::vector<std::vector<Cell>>& rows() const;
@@ -50,6 +54,7 @@ private:
     // Current drawing attributes
     uint32_t m_currentFG;
     uint32_t m_currentBG;
+    uint8_t  m_currentAttrs = 0;   // CellAttr flags applied to new cells
 
     // Palettes
     uint32_t palette16[16];

@@ -24,6 +24,9 @@ static NSColor* colorFromARGB(uint32_t c) {
     Terminal*  _term;
     PTY*       _pty;
     NSFont*    _font;
+    NSFont*    _fontBold;
+    NSFont*    _fontItalic;
+    NSFont*    _fontBoldItalic;
     NSColor*   _defaultBg;
     NSColor*   _defaultFg;
     CGFloat    _cellW;
@@ -42,6 +45,10 @@ static NSColor* colorFromARGB(uint32_t c) {
 
     _font = [NSFont fontWithName:fontName size:fontSize];
     if (!_font) _font = [NSFont monospacedSystemFontOfSize:fontSize weight:NSFontWeightRegular];
+    NSFontManager* fm = [NSFontManager sharedFontManager];
+    _fontBold       = [fm convertFont:_font toHaveTrait:NSBoldFontMask];
+    _fontItalic     = [fm convertFont:_font toHaveTrait:NSItalicFontMask];
+    _fontBoldItalic = [fm convertFont:_fontBold toHaveTrait:NSItalicFontMask];
     _defaultBg = [NSColor colorWithSRGBRed:0.07 green:0.07 blue:0.09 alpha:1.0];
     _defaultFg = [NSColor colorWithSRGBRed:0.92 green:0.92 blue:0.96 alpha:1.0];
 
@@ -109,30 +116,40 @@ static NSColor* colorFromARGB(uint32_t c) {
     if (!_term) return;
     const auto& rows = _term->grid().rows();
 
-    NSDictionary* baseAttrs = @{ NSFontAttributeName: _font,
-                                 NSForegroundColorAttributeName: _defaultFg };
-
     for (int r = 0; r < (int)rows.size(); ++r) {
         const auto& line = rows[r];
         CGFloat y = r * _cellH;
         for (int c = 0; c < (int)line.size(); ++c) {
             const kterm::renderer::Cell& cell = line[c];
             CGFloat x = c * _cellW;
+            uint8_t a = cell.attrs;
 
-            // Background (only when the cell set one; alpha 0 == default).
-            if (((cell.bg >> 24) & 0xFF) != 0) {
-                [colorFromARGB(cell.bg) set];
+            // Effective colors (fg sentinel 0xFFFFFFFF / bg alpha 0 = defaults).
+            NSColor* fg = (cell.fg != 0xFFFFFFFF) ? colorFromARGB(cell.fg) : _defaultFg;
+            NSColor* bg = (((cell.bg >> 24) & 0xFF) != 0) ? colorFromARGB(cell.bg) : nil;
+            if (a & kterm::renderer::ATTR_INVERSE) {       // swap fg/bg
+                NSColor* prevFg = fg;
+                fg = bg ? bg : _defaultBg;
+                bg = prevFg;
+            }
+
+            if (bg) {
+                [bg set];
                 NSRectFill(NSMakeRect(x, y, _cellW, _cellH));
             }
 
-            // Glyph (Unicode codepoint).
             uint32_t cp = cell.ch;
             if (cp != ' ' && cp != 0) {
-                NSDictionary* attrs = baseAttrs;
-                if (cell.fg != 0xFFFFFFFF) {
-                    attrs = @{ NSFontAttributeName: _font,
-                               NSForegroundColorAttributeName: colorFromARGB(cell.fg) };
-                }
+                NSFont* f = _font;
+                if      ((a & kterm::renderer::ATTR_BOLD) && (a & kterm::renderer::ATTR_ITALIC)) f = _fontBoldItalic;
+                else if (a & kterm::renderer::ATTR_BOLD)   f = _fontBold;
+                else if (a & kterm::renderer::ATTR_ITALIC) f = _fontItalic;
+
+                NSMutableDictionary* attrs = [@{ NSFontAttributeName: f,
+                                                 NSForegroundColorAttributeName: fg } mutableCopy];
+                if (a & kterm::renderer::ATTR_UNDERLINE)
+                    attrs[NSUnderlineStyleAttributeName] = @(NSUnderlineStyleSingle);
+
                 NSString* s = [[NSString alloc] initWithBytes:&cp
                                                        length:sizeof(cp)
                                                      encoding:NSUTF32LittleEndianStringEncoding];

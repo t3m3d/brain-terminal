@@ -145,6 +145,37 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
             m_grid.resetAttributes();
             break;
 
+        case EscapeType::SGR: {
+            const auto& ps = seq.params;
+            for (size_t i = 0; i < ps.size(); ++i) {
+                int code = ps[i];
+                if      (code == 0)  m_grid.resetAttributes();
+                else if (code == 1)  m_grid.enableAttr(renderer::ATTR_BOLD);
+                else if (code == 3)  m_grid.enableAttr(renderer::ATTR_ITALIC);
+                else if (code == 4)  m_grid.enableAttr(renderer::ATTR_UNDERLINE);
+                else if (code == 7)  m_grid.enableAttr(renderer::ATTR_INVERSE);
+                else if (code == 22) m_grid.disableAttr(renderer::ATTR_BOLD);
+                else if (code == 23) m_grid.disableAttr(renderer::ATTR_ITALIC);
+                else if (code == 24) m_grid.disableAttr(renderer::ATTR_UNDERLINE);
+                else if (code == 27) m_grid.disableAttr(renderer::ATTR_INVERSE);
+                else if (code >= 30 && code <= 37) m_grid.setFG16(code - 30);
+                else if (code == 38) {
+                    if (i + 2 < ps.size() && ps[i+1] == 5) { m_grid.setFG256(ps[i+2]); i += 2; }
+                    else if (i + 4 < ps.size() && ps[i+1] == 2) { m_grid.setFGTrue(ps[i+2], ps[i+3], ps[i+4]); i += 4; }
+                }
+                else if (code == 39) m_grid.setFGDefault();
+                else if (code >= 40 && code <= 47) m_grid.setBG16(code - 40);
+                else if (code == 48) {
+                    if (i + 2 < ps.size() && ps[i+1] == 5) { m_grid.setBG256(ps[i+2]); i += 2; }
+                    else if (i + 4 < ps.size() && ps[i+1] == 2) { m_grid.setBGTrue(ps[i+2], ps[i+3], ps[i+4]); i += 4; }
+                }
+                else if (code == 49) m_grid.setBGDefault();
+                else if (code >= 90 && code <= 97)   m_grid.setFG16(code - 90 + 8);   // bright fg
+                else if (code >= 100 && code <= 107) m_grid.setBG16(code - 100 + 8);  // bright bg
+            }
+            break;
+        }
+
         default:
             break;
     }
