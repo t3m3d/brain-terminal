@@ -7,15 +7,16 @@
 #include "kterm/renderer/Grid.hpp"
 #include "kterm/renderer/Cell.hpp"
 
-// One vertex: position in points, RGBA color, atlas UV (u<0 => solid quad).
-struct MVertex { float x, y, r, g, b, a, u, v; };
+// One vertex. Field order matches the shader's VIn (pos, uv, color) so that
+// float4 color lands at a 16-byte-aligned offset with no hidden padding.
+struct MVertex { float x, y, u, v, r, g, b, a; };
 
 struct GlyphInfo { float u0, v0, u1, v1; float w, h; bool valid; };
 
 static NSString* const kShaderSrc = @R"METAL(
 #include <metal_stdlib>
 using namespace metal;
-struct VIn  { float2 pos; float4 color; float2 uv; };
+struct VIn  { float2 pos; float2 uv; float4 color; };   // matches MVertex layout
 struct VOut { float4 pos [[position]]; float4 color; float2 uv; };
 vertex VOut v_main(uint vid [[vertex_id]],
                    constant VIn* verts [[buffer(0)]],
@@ -42,6 +43,7 @@ fragment float4 f_main(VOut in [[stage_in]],
     id<MTLRenderPipelineState> _pipe;
     id<MTLSamplerState>        _sampler;
     id<MTLTexture>             _atlas;
+    id<MTLBuffer>              _vbuf;
 
     NSFont* _font; NSFont* _bold; NSFont* _italic; NSFont* _boldItalic;
     CGFloat _cellW, _cellH, _scale;
@@ -102,6 +104,7 @@ fragment float4 f_main(VOut in [[stage_in]],
 }
 
 - (BOOL)ready { return _ready; }
+- (id<MTLDevice>)mtlDevice { return _device; }
 
 - (void)dealloc { delete _glyphs; delete _verts; }
 
@@ -152,15 +155,15 @@ fragment float4 f_main(VOut in [[stage_in]],
 
 - (void)addSolidX:(float)x y:(float)y w:(float)w h:(float)h
                 r:(float)r g:(float)gg b:(float)b a:(float)a {
-    MVertex v0{x,y,r,gg,b,a,-1,-1}, v1{x+w,y,r,gg,b,a,-1,-1}, v2{x,y+h,r,gg,b,a,-1,-1};
-    MVertex v3{x+w,y,r,gg,b,a,-1,-1}, v4{x+w,y+h,r,gg,b,a,-1,-1}, v5{x,y+h,r,gg,b,a,-1,-1};
+    MVertex v0{x,y,-1,-1,r,gg,b,a}, v1{x+w,y,-1,-1,r,gg,b,a}, v2{x,y+h,-1,-1,r,gg,b,a};
+    MVertex v3{x+w,y,-1,-1,r,gg,b,a}, v4{x+w,y+h,-1,-1,r,gg,b,a}, v5{x,y+h,-1,-1,r,gg,b,a};
     _verts->insert(_verts->end(), {v0,v1,v2,v3,v4,v5});
 }
 
 - (void)addGlyph:(GlyphInfo)gi x:(float)x y:(float)y r:(float)r g:(float)gg b:(float)b {
     float w = gi.w, h = gi.h;
-    MVertex v0{x,y,r,gg,b,1,gi.u0,gi.v0}, v1{x+w,y,r,gg,b,1,gi.u1,gi.v0}, v2{x,y+h,r,gg,b,1,gi.u0,gi.v1};
-    MVertex v3{x+w,y,r,gg,b,1,gi.u1,gi.v0}, v4{x+w,y+h,r,gg,b,1,gi.u1,gi.v1}, v5{x,y+h,r,gg,b,1,gi.u0,gi.v1};
+    MVertex v0{x,y,gi.u0,gi.v0,r,gg,b,1}, v1{x+w,y,gi.u1,gi.v0,r,gg,b,1}, v2{x,y+h,gi.u0,gi.v1,r,gg,b,1};
+    MVertex v3{x+w,y,gi.u1,gi.v0,r,gg,b,1}, v4{x+w,y+h,gi.u1,gi.v1,r,gg,b,1}, v5{x,y+h,gi.u0,gi.v1,r,gg,b,1};
     _verts->insert(_verts->end(), {v0,v1,v2,v3,v4,v5});
 }
 
@@ -247,8 +250,15 @@ static inline void argb(uint32_t c, float* r, float* g, float* b, float* a) {
     id<MTLCommandBuffer> cb = [_queue commandBuffer];
     id<MTLRenderCommandEncoder> enc = [cb renderCommandEncoderWithDescriptor:rp];
     if (!_verts->empty()) {
+        // setVertexBytes is capped at 4 KB; our geometry is much larger, so it
+        // must go through an MTLBuffer.
+        size_t bytes = _verts->size() * sizeof(MVertex);
+        if (!_vbuf || _vbuf.length < bytes)
+            _vbuf = [_device newBufferWithLength:bytes options:MTLResourceStorageModeShared];
+        memcpy(_vbuf.contents, _verts->data(), bytes);
+
         [enc setRenderPipelineState:_pipe];
-        [enc setVertexBytes:_verts->data() length:_verts->size()*sizeof(MVertex) atIndex:0];
+        [enc setVertexBuffer:_vbuf offset:0 atIndex:0];
         float vp[2] = { (float)viewW, (float)viewH };
         [enc setVertexBytes:vp length:sizeof(vp) atIndex:1];
         [enc setFragmentTexture:_atlas atIndex:0];

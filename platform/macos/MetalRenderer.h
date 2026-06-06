@@ -1,6 +1,7 @@
 #pragma once
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/CAMetalLayer.h>
+#import <Metal/Metal.h>
 #include "kterm/core/Terminal.hpp"
 
 // GPU renderer for the terminal grid: one CoreText glyph atlas + a single
@@ -17,6 +18,7 @@
                        scale:(CGFloat)scale;
 
 - (BOOL)ready;   // pipeline + device came up
+- (id<MTLDevice>)mtlDevice;
 
 - (void)renderTerminal:(kterm::core::Terminal*)term
                  layer:(CAMetalLayer*)layer

@@ -77,11 +77,22 @@ static NSColor* colorFromARGB(uint32_t c) {
     _shell = std::string([shell UTF8String]);
     const char* rend = getenv("KTERM_RENDERER");
     _metal = (rend && strcmp(rend, "metal") == 0);
-    // Defer terminal/PTY creation until the view is in the window with its
-    // real laid-out size (see viewDidMoveToWindow) — spawning here with the
-    // pre-layout frame can give the shell a slightly-wrong column count, so
-    // p10k draws the prompt frame short until the first resize.
 
+    // CAMetalLayer must be layer-HOSTING (set self.layer before wantsLayer),
+    // not layer-backed via makeBackingLayer — otherwise AppKit manages/clears
+    // the layer and you get a blank window.
+    if (_metal) {
+        _metalLayer = [CAMetalLayer layer];
+        _metalLayer.device = MTLCreateSystemDefaultDevice();
+        _metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+        _metalLayer.framebufferOnly = YES;
+        _metalLayer.opaque = YES;
+        self.layer = _metalLayer;
+    }
+    self.wantsLayer = YES;
+
+    // Defer terminal/PTY creation until the view is in the window with its
+    // real laid-out size (see viewDidMoveToWindow).
     return self;
 }
 
@@ -147,23 +158,12 @@ static NSColor* colorFromARGB(uint32_t c) {
                                              boldItalic:_fontBoldItalic
                                                   cellW:_cellW cellH:_cellH scale:scale];
         if (![_renderer ready]) { NSLog(@"kterm: Metal unavailable, using CPU"); _metal = NO; _renderer = nil; }
+        else if (_metalLayer) _metalLayer.device = [_renderer mtlDevice];  // SAME device as the renderer
         [self updateDrawableSize];
     }
     // Spawn the shell once the view has its real on-screen size, so the PTY
     // gets the correct column count from the first prompt.
     if (!_term) [self rebuildTerminalForSize:self.bounds.size];
-}
-
-- (CALayer*)makeBackingLayer {
-    if (_metal) {
-        _metalLayer = [CAMetalLayer layer];
-        _metalLayer.device = MTLCreateSystemDefaultDevice();
-        _metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-        _metalLayer.framebufferOnly = YES;
-        _metalLayer.contentsScale = self.window ? self.window.backingScaleFactor : 2.0;
-        return _metalLayer;
-    }
-    return [super makeBackingLayer];
 }
 
 - (void)updateDrawableSize {
@@ -193,7 +193,6 @@ static NSColor* colorFromARGB(uint32_t c) {
 
 - (BOOL)isFlipped { return YES; }            // top-left origin, like the grid
 - (BOOL)acceptsFirstResponder { return YES; }
-- (BOOL)wantsLayer { return YES; }
 
 - (void)setFrameSize:(NSSize)newSize {
     [super setFrameSize:newSize];
