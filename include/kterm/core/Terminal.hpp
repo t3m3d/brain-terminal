@@ -2,6 +2,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <map>
 #include "kterm/renderer/Grid.hpp"
 #include "kterm/parser/AnsiParser.hpp"
 
@@ -24,6 +25,29 @@ public:
     // Renderer calls this so Terminal can request repaints
     void setRenderCallback(RenderCallback cb) { m_renderCallback = std::move(cb); }
 
+    // Terminal modes (DEC private) for the frontend.
+    bool bracketedPaste() const { return m_bracketedPaste; }
+    bool cursorVisible()  const { return m_cursorVisible; }
+
+    // OSC 133 command blocks. Status of the block CONTAINING an absolute line:
+    // -1 none, 0 idle prompt (no bar), 1 success (exit 0), 2 failure (nonzero),
+    // 3 running. Returns the status of the nearest prompt-start mark at/above.
+    int blockStatusForLine(long absLine) const {
+        if (m_blockMarks.empty()) return -1;
+        auto it = m_blockMarks.upper_bound(absLine);   // first mark strictly above
+        if (it == m_blockMarks.begin()) return -1;     // no mark at/above this line
+        --it;
+        return it->second;
+    }
+    bool hasBlockMarks() const { return !m_blockMarks.empty(); }
+
+    // Status ONLY if absLine is itself a command's prompt-start line (else -1).
+    // Used to draw a single tick per command rather than a full-block stripe.
+    int blockMarkExact(long absLine) const {
+        auto it = m_blockMarks.find(absLine);
+        return it == m_blockMarks.end() ? -1 : it->second;
+    }
+
 private:
     int m_cols;
     int m_rows;
@@ -32,6 +56,14 @@ private:
 
     renderer::Grid m_grid;
     parser::AnsiParser m_parser;
+
+    std::string m_utf8;   // incomplete trailing UTF-8 sequence carried between feeds
+    bool m_bracketedPaste = false;
+    bool m_cursorVisible  = true;
+
+    // OSC 133 command blocks: prompt-start absolute line -> status (0 run,1 ok,2 fail).
+    std::map<long, int> m_blockMarks;
+    long m_lastMarkLine = -1;   // abs line of the most recent prompt-start (133;A)
 
     RenderCallback m_renderCallback;
 

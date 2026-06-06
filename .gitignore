@@ -1,2 +1,5 @@
 .vs
 build/
+kterm-native
+kterm.app/
+brain.app/
