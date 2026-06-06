@@ -16,8 +16,9 @@ clang++ -std=c++20 -fobjc-arc -O2 -Iinclude -Wno-unicode-whitespace \
   src/pty/PTYPlatform.cpp \
   src/scrollback/ScrollbackBuffer.cpp \
   platform/macos/TermView.mm \
+  platform/macos/MetalRenderer.mm \
   platform/macos/main_macos.mm \
-  -framework Cocoa \
+  -framework Cocoa -framework Metal -framework QuartzCore \
   -o "$MACOS/kterm"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'

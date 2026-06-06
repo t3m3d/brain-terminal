@@ -32,6 +32,9 @@ static void installMenu(NSApplication* app) {
 
 int main(int argc, const char* argv[]) {
     @autoreleasepool {
+        // `open kterm.app --args --metal` selects the GPU renderer (env also works).
+        for (int i = 1; i < argc; i++)
+            if (strcmp(argv[i], "--metal") == 0) setenv("KTERM_RENDERER", "metal", 1);
         NSApplication* app = [NSApplication sharedApplication];
         [app setActivationPolicy:NSApplicationActivationPolicyRegular];
 

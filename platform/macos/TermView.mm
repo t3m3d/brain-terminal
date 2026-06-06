@@ -1,7 +1,11 @@
 #import "TermView.h"
+#import "MetalRenderer.h"
+#import <QuartzCore/CAMetalLayer.h>
+#import <Metal/Metal.h>
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <cstdlib>
 
 #include "kterm/core/Terminal.hpp"
 #include "kterm/pty/PTY.hpp"
@@ -41,6 +45,9 @@ static NSColor* colorFromARGB(uint32_t c) {
     int        _selEndRow,   _selEndCol;
     BOOL       _caretOn;
     NSTimer*   _blinkTimer;
+    BOOL       _metal;             // KTERM_RENDERER=metal
+    CAMetalLayer* _metalLayer;
+    MetalRenderer* _renderer;
     std::string _shell;
 }
 
@@ -68,6 +75,8 @@ static NSColor* colorFromARGB(uint32_t c) {
     if (_cellH < 1) _cellH = fontSize * 1.2;
 
     _shell = std::string([shell UTF8String]);
+    const char* rend = getenv("KTERM_RENDERER");
+    _metal = (rend && strcmp(rend, "metal") == 0);
     // Defer terminal/PTY creation until the view is in the window with its
     // real laid-out size (see viewDidMoveToWindow) — spawning here with the
     // pre-layout frame can give the shell a slightly-wrong column count, so
@@ -92,14 +101,14 @@ static NSColor* colorFromARGB(uint32_t c) {
         __unsafe_unretained TermView* u = self;
 
         _term->setRenderCallback([u]() {
-            dispatch_async(dispatch_get_main_queue(), ^{ [u setNeedsDisplay:YES]; });
+            dispatch_async(dispatch_get_main_queue(), ^{ [u refresh]; });
         });
 
         _pty->setOutputCallback([u](const std::vector<char>& data) {
             std::vector<char> copy = data;  // hop off the read thread
             dispatch_async(dispatch_get_main_queue(), ^{
                 u->_term->onPTYOutput(copy);
-                [u setNeedsDisplay:YES];
+                [u refresh];
             });
         });
 
@@ -121,7 +130,7 @@ static NSColor* colorFromARGB(uint32_t c) {
         _caretOn = YES;
         _blinkTimer = [NSTimer scheduledTimerWithTimeInterval:0.53 repeats:YES block:^(NSTimer* t){
             u->_caretOn = !u->_caretOn;
-            if (u->_scrollOffset == 0) [u setNeedsDisplay:YES];
+            if (u->_scrollOffset == 0) [u refresh];
         }];
     } else {
         _term->resize(cols, rows);
@@ -131,11 +140,55 @@ static NSColor* colorFromARGB(uint32_t c) {
 
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
+    if (!self.window) return;
+    if (_metal && !_renderer) {
+        CGFloat scale = self.window.backingScaleFactor ?: 1.0;
+        _renderer = [[MetalRenderer alloc] initWithFont:_font bold:_fontBold italic:_fontItalic
+                                             boldItalic:_fontBoldItalic
+                                                  cellW:_cellW cellH:_cellH scale:scale];
+        if (![_renderer ready]) { NSLog(@"kterm: Metal unavailable, using CPU"); _metal = NO; _renderer = nil; }
+        [self updateDrawableSize];
+    }
     // Spawn the shell once the view has its real on-screen size, so the PTY
     // gets the correct column count from the first prompt.
-    if (self.window && !_term) {
-        [self rebuildTerminalForSize:self.bounds.size];
+    if (!_term) [self rebuildTerminalForSize:self.bounds.size];
+}
+
+- (CALayer*)makeBackingLayer {
+    if (_metal) {
+        _metalLayer = [CAMetalLayer layer];
+        _metalLayer.device = MTLCreateSystemDefaultDevice();
+        _metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+        _metalLayer.framebufferOnly = YES;
+        _metalLayer.contentsScale = self.window ? self.window.backingScaleFactor : 2.0;
+        return _metalLayer;
     }
+    return [super makeBackingLayer];
+}
+
+- (void)updateDrawableSize {
+    if (!_metalLayer) return;
+    CGFloat scale = self.window ? self.window.backingScaleFactor : 2.0;
+    _metalLayer.contentsScale = scale;
+    CGSize sz = self.bounds.size;
+    _metalLayer.drawableSize = CGSizeMake(sz.width * scale, sz.height * scale);
+}
+
+// Redraw via whichever renderer is active.
+- (void)refresh {
+    if (_metal && _renderer) [self renderMetal];
+    else [self setNeedsDisplay:YES];
+}
+
+- (void)renderMetal {
+    if (!_renderer || !_metalLayer || !_term) return;
+    [_renderer renderTerminal:_term layer:_metalLayer
+                        viewW:self.bounds.size.width viewH:self.bounds.size.height
+                 scrollOffset:_scrollOffset cols:_cols rows:_rows
+                 hasSelection:_hasSelection
+                     selStart:NSMakePoint(_selStartCol, _selStartRow)
+                       selEnd:NSMakePoint(_selEndCol, _selEndRow)
+                      caretOn:_caretOn defaultFg:_defaultFg defaultBg:_defaultBg];
 }
 
 - (BOOL)isFlipped { return YES; }            // top-left origin, like the grid
@@ -145,7 +198,8 @@ static NSColor* colorFromARGB(uint32_t c) {
 - (void)setFrameSize:(NSSize)newSize {
     [super setFrameSize:newSize];
     [self rebuildTerminalForSize:newSize];
-    [self setNeedsDisplay:YES];
+    [self updateDrawableSize];
+    [self refresh];
 }
 
 - (void)scrollWheel:(NSEvent*)event {
@@ -160,7 +214,7 @@ static NSColor* colorFromARGB(uint32_t c) {
     if (_scrollOffset < 0) _scrollOffset = 0;
     if (_scrollOffset > H) _scrollOffset = H;
     _hasSelection = NO;               // selection is viewport-relative; drop it on scroll
-    [self setNeedsDisplay:YES];
+    [self refresh];
 }
 
 // ── Mouse selection ───────────────────────────────────────────────────
@@ -177,13 +231,13 @@ static NSColor* colorFromARGB(uint32_t c) {
     int r, c; [self cellForEvent:event row:&r col:&c];
     _selStartRow = _selEndRow = r; _selStartCol = _selEndCol = c;
     _selecting = YES; _hasSelection = NO;
-    [self setNeedsDisplay:YES];
+    [self refresh];
 }
 - (void)mouseDragged:(NSEvent*)event {
     if (!_selecting) return;
     int r, c; [self cellForEvent:event row:&r col:&c];
     _selEndRow = r; _selEndCol = c; _hasSelection = YES;
-    [self setNeedsDisplay:YES];
+    [self refresh];
 }
 - (void)mouseUp:(NSEvent*)event { _selecting = NO; }
 
@@ -281,10 +335,11 @@ static NSColor* colorFromARGB(uint32_t c) {
     _selStartRow = 0; _selStartCol = 0;
     _selEndRow = _rows - 1; _selEndCol = _cols;
     _hasSelection = YES;
-    [self setNeedsDisplay:YES];
+    [self refresh];
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
+    if (_metal) return;             // Metal renders via renderMetal, not drawRect
     [_defaultBg set];
     NSRectFill(self.bounds);
 
