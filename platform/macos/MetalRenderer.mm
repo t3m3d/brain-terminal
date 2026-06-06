@@ -43,14 +43,20 @@ fragment float4 f_main(VOut in [[stage_in]],
     id<MTLRenderPipelineState> _pipe;
     id<MTLSamplerState>        _sampler;
     id<MTLTexture>             _atlas;
-    id<MTLBuffer>              _vbuf;
+    id<MTLBuffer>              _vbuf;   // overlay (selection + caret), rebuilt per frame
+    id<MTLBuffer>              _gbuf;   // cached grid geometry, rebuilt on content change
 
     NSFont* _font; NSFont* _bold; NSFont* _italic; NSFont* _boldItalic;
     CGFloat _cellW, _cellH, _scale;
 
     int _atlasDim, _tileW, _tileH, _atlasX, _atlasY;
     std::unordered_map<uint64_t, GlyphInfo>* _glyphs;
-    std::vector<MVertex>* _verts;
+    std::vector<MVertex>* _verts;        // scratch: builds grid (on rebuild) then overlay
+    size_t   _gridCount;                 // vertex count currently in _gbuf
+
+    // Cache key — when any of these changes, the grid geometry is rebuilt.
+    uint64_t _cacheGen; int _cacheScroll, _cacheCols, _cacheRows;
+    uint32_t _cacheFg, _cacheBg; BOOL _cacheValid;
     BOOL _ready;
 }
 
@@ -179,7 +185,6 @@ static inline void argb(uint32_t c, float* r, float* g, float* b, float* a) {
               selStart:(NSPoint)selStart selEnd:(NSPoint)selEnd caretOn:(BOOL)caretOn
              defaultFg:(NSColor*)defaultFg defaultBg:(NSColor*)defaultBg {
     if (!_ready || !term) return;
-    _verts->clear();
 
     float dfR,dfG,dfB,dfA; { CGFloat r,g,b,a; [[defaultFg colorUsingColorSpace:NSColorSpace.sRGBColorSpace] getRed:&r green:&g blue:&b alpha:&a]; dfR=r;dfG=g;dfB=b;dfA=a; }
     float dbR,dbG,dbB,dbA; { CGFloat r,g,b,a; [[defaultBg colorUsingColorSpace:NSColorSpace.sRGBColorSpace] getRed:&r green:&g blue:&b alpha:&a]; dbR=r;dbG=g;dbB=b;dbA=a; }
@@ -190,38 +195,63 @@ static inline void argb(uint32_t c, float* r, float* g, float* b, float* a) {
     const auto& live = grid.rows();
     int R = (int)live.size();
 
-    for (int vr = 0; vr < R; ++vr) {
-        int idx = (H - s) + vr;
-        if (idx < 0) continue;
-        const std::vector<kterm::renderer::Cell>* line;
-        if (idx < H) line = &grid.historyRow(idx);
-        else { int lr = idx - H; if (lr >= R) continue; line = &live[lr]; }
+    // M4: grid geometry is rebuilt only when content / scroll / size / default
+    // colors change. Caret-blink and selection-only frames reuse the cached
+    // _gbuf and just re-upload the tiny overlay.
+    uint32_t fgKey = (uint32_t)(dfR*255)<<16 | (uint32_t)(dfG*255)<<8 | (uint32_t)(dfB*255);
+    uint32_t bgKey = (uint32_t)(dbR*255)<<16 | (uint32_t)(dbG*255)<<8 | (uint32_t)(dbB*255);
+    uint64_t gen   = grid.generation();
+    BOOL rebuild = !_cacheValid || gen != _cacheGen || s != _cacheScroll ||
+                   cols != _cacheCols || rows != _cacheRows ||
+                   fgKey != _cacheFg || bgKey != _cacheBg;
 
-        float y = vr * (float)_cellH;
-        for (int c = 0; c < (int)line->size(); ++c) {
-            const kterm::renderer::Cell& cell = (*line)[c];
-            float x = c * (float)_cellW;
-            uint8_t at = cell.attrs;
+    if (rebuild) {
+        _verts->clear();
+        for (int vr = 0; vr < R; ++vr) {
+            int idx = (H - s) + vr;
+            if (idx < 0) continue;
+            const std::vector<kterm::renderer::Cell>* line;
+            if (idx < H) line = &grid.historyRow(idx);
+            else { int lr = idx - H; if (lr >= R) continue; line = &live[lr]; }
 
-            float fr=dfR,fg=dfG,fb=dfB; bool hasBg=false; float br=0,bg=0,bb=0;
-            if (cell.fg != 0xFFFFFFFF) { float a; argb(cell.fg,&fr,&fg,&fb,&a); }
-            if (((cell.bg>>24)&0xFF) != 0) { float a; argb(cell.bg,&br,&bg,&bb,&a); hasBg=true; }
-            if (at & kterm::renderer::ATTR_INVERSE) {
-                float tr=fr,tg=fg,tb=fb;
-                fr = hasBg?br:dbR; fg = hasBg?bg:dbG; fb = hasBg?bb:dbB;
-                br=tr; bg=tg; bb=tb; hasBg=true;
-            }
-            if (hasBg) [self addSolidX:x y:y w:(float)_cellW h:(float)_cellH r:br g:bg b:bb a:1.0];
+            float y = vr * (float)_cellH;
+            for (int c = 0; c < (int)line->size(); ++c) {
+                const kterm::renderer::Cell& cell = (*line)[c];
+                float x = c * (float)_cellW;
+                uint8_t at = cell.attrs;
 
-            uint32_t cp = cell.ch;
-            if (cp != ' ' && cp != 0) {
-                int variant = ((at&kterm::renderer::ATTR_BOLD)&&(at&kterm::renderer::ATTR_ITALIC))?3
-                            : (at&kterm::renderer::ATTR_BOLD)?1 : (at&kterm::renderer::ATTR_ITALIC)?2 : 0;
-                GlyphInfo gi = [self glyphFor:cp variant:variant];
-                if (gi.valid) [self addGlyph:gi x:x y:y r:fr g:fg b:fb];
+                float fr=dfR,fg=dfG,fb=dfB; bool hasBg=false; float br=0,bg=0,bb=0;
+                if (cell.fg != 0xFFFFFFFF) { float a; argb(cell.fg,&fr,&fg,&fb,&a); }
+                if (((cell.bg>>24)&0xFF) != 0) { float a; argb(cell.bg,&br,&bg,&bb,&a); hasBg=true; }
+                if (at & kterm::renderer::ATTR_INVERSE) {
+                    float tr=fr,tg=fg,tb=fb;
+                    fr = hasBg?br:dbR; fg = hasBg?bg:dbG; fb = hasBg?bb:dbB;
+                    br=tr; bg=tg; bb=tb; hasBg=true;
+                }
+                if (hasBg) [self addSolidX:x y:y w:(float)_cellW h:(float)_cellH r:br g:bg b:bb a:1.0];
+
+                uint32_t cp = cell.ch;
+                if (cp != ' ' && cp != 0) {
+                    int variant = ((at&kterm::renderer::ATTR_BOLD)&&(at&kterm::renderer::ATTR_ITALIC))?3
+                                : (at&kterm::renderer::ATTR_BOLD)?1 : (at&kterm::renderer::ATTR_ITALIC)?2 : 0;
+                    GlyphInfo gi = [self glyphFor:cp variant:variant];
+                    if (gi.valid) [self addGlyph:gi x:x y:y r:fr g:fg b:fb];
+                }
             }
         }
+        _gridCount = _verts->size();
+        if (_gridCount) {
+            size_t bytes = _gridCount * sizeof(MVertex);
+            if (!_gbuf || _gbuf.length < bytes)
+                _gbuf = [_device newBufferWithLength:bytes options:MTLResourceStorageModeShared];
+            memcpy(_gbuf.contents, _verts->data(), bytes);
+        }
+        _cacheGen=gen; _cacheScroll=s; _cacheCols=cols; _cacheRows=rows;
+        _cacheFg=fgKey; _cacheBg=bgKey; _cacheValid=YES;
     }
+
+    // Overlay (selection + caret) — always rebuilt; small and cheap.
+    _verts->clear();
 
     // Selection overlay (translucent).
     if (hasSelection) {
@@ -251,20 +281,27 @@ static inline void argb(uint32_t c, float* r, float* g, float* b, float* a) {
 
     id<MTLCommandBuffer> cb = [_queue commandBuffer];
     id<MTLRenderCommandEncoder> enc = [cb renderCommandEncoderWithDescriptor:rp];
+
+    float vp[2] = { (float)viewW, (float)viewH };
+    [enc setRenderPipelineState:_pipe];
+    [enc setVertexBytes:vp length:sizeof(vp) atIndex:1];
+    [enc setFragmentTexture:_atlas atIndex:0];
+    [enc setFragmentSamplerState:_sampler atIndex:0];
+
+    // Cached grid geometry first (opaque-ish bg + glyphs).
+    if (_gridCount && _gbuf) {
+        [enc setVertexBuffer:_gbuf offset:0 atIndex:0];
+        [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:_gridCount];
+    }
+
+    // Overlay on top (selection + caret). setVertexBytes is capped at 4 KB and a
+    // tall selection can exceed it, so this also goes through an MTLBuffer.
     if (!_verts->empty()) {
-        // setVertexBytes is capped at 4 KB; our geometry is much larger, so it
-        // must go through an MTLBuffer.
         size_t bytes = _verts->size() * sizeof(MVertex);
         if (!_vbuf || _vbuf.length < bytes)
             _vbuf = [_device newBufferWithLength:bytes options:MTLResourceStorageModeShared];
         memcpy(_vbuf.contents, _verts->data(), bytes);
-
-        [enc setRenderPipelineState:_pipe];
         [enc setVertexBuffer:_vbuf offset:0 atIndex:0];
-        float vp[2] = { (float)viewW, (float)viewH };
-        [enc setVertexBytes:vp length:sizeof(vp) atIndex:1];
-        [enc setFragmentTexture:_atlas atIndex:0];
-        [enc setFragmentSamplerState:_sampler atIndex:0];
         [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:_verts->size()];
     }
     [enc endEncoding];

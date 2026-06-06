@@ -53,6 +53,10 @@ public:
 
     // Total lines ever scrolled off the top (for stable absolute line numbers).
     long absScroll() const { return m_absScroll; }
+
+    // Bumped on any change to visible cell CONTENT (not cursor moves). Lets the
+    // GPU renderer cache grid geometry and rebuild only when this changes.
+    uint64_t generation() const { return m_generation; }
 private:
     int m_cols;
     int m_rows;
@@ -72,6 +76,7 @@ private:
     std::vector<std::vector<Cell>> m_cells;
     std::deque<std::vector<Cell>> m_history;   // scrolled-off rows (oldest..newest)
     long m_absScroll = 0;                      // count of lines scrolled off the top, ever
+    uint64_t m_generation = 0;                 // bumped on visible content change
 
     void clampCursor();
     void lineFeed();   // advance one row, scrolling at the bottom

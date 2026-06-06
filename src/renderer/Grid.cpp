@@ -56,17 +56,20 @@ void Grid::resize(int cols, int rows) {
     m_cells.assign(rows, std::vector<Cell>(cols));
     m_cursorRow = 0;
     m_cursorCol = 0;
+    m_generation++;
 }
 
 void Grid::clear() {
     for (auto& row : m_cells)
         for (auto& cell : row)
             cell = Cell();
+    m_generation++;
 }
 
 void Grid::clearLine(int row) {
     if (row >= 0 && row < m_rows)
         m_cells[row].assign(m_cols, Cell());
+    m_generation++;
 }
 
 // Erase from the cursor column to the end of the current row (CSI 0K). This
@@ -76,6 +79,7 @@ void Grid::eraseToLineEnd() {
     if (m_cursorRow >= 0 && m_cursorRow < m_rows)
         for (int c = m_cursorCol; c < m_cols; ++c)
             m_cells[m_cursorRow][c] = Cell();
+    m_generation++;
 }
 
 // Erase from the cursor to the end of the screen (CSI 0J): rest of this row,
@@ -84,12 +88,14 @@ void Grid::eraseToScreenEnd() {
     eraseToLineEnd();
     for (int r = m_cursorRow + 1; r < m_rows; ++r)
         m_cells[r].assign(m_cols, Cell());
+    m_generation++;
 }
 
 // Scroll the whole grid up one row: drop row 0, shift everything up, blank the
 // new bottom row. Called when the cursor advances past the last row.
 void Grid::scrollUp() {
     if (m_rows <= 0) return;
+    m_generation++;
     m_absScroll++;                                    // one more line off the top
     m_history.push_back(m_cells[0]);                  // keep the scrolled-off row
     if (m_history.size() > 5000) m_history.pop_front();
@@ -153,6 +159,7 @@ void Grid::putCodepoint(uint32_t cp) {
         cell.fg = m_currentFG;
         cell.bg = m_currentBG;
         cell.attrs = m_currentAttrs;
+        m_generation++;
     }
 
     if (m_cursorCol + 1 >= m_cols) m_wrapPending = true;  // park in last column
