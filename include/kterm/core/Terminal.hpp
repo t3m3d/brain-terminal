@@ -33,6 +33,8 @@ private:
     renderer::Grid m_grid;
     parser::AnsiParser m_parser;
 
+    std::string m_utf8;   // incomplete trailing UTF-8 sequence carried between feeds
+
     RenderCallback m_renderCallback;
 
     void handleText(const std::string& text);

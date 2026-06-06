@@ -15,6 +15,8 @@ public:
     void eraseToScreenEnd(); // erase from cursor to end of screen
 
     void putChar(char c);
+    void putCodepoint(uint32_t cp);   // place a Unicode codepoint at the cursor
+    void scrollUp();                  // scroll the whole grid up one row
 
     // Cursor movement
     void cursorUp(int n);
@@ -56,6 +58,7 @@ private:
     std::vector<std::vector<Cell>> m_cells;
 
     void clampCursor();
+    void lineFeed();   // advance one row, scrolling at the bottom
 };
 
 }

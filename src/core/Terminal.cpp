@@ -38,8 +38,34 @@ void Terminal::onPTYOutput(const std::vector<char>& data) {
 }
 
 void Terminal::handleText(const std::string& text) {
-    for (char c : text) {
-        m_grid.putChar(c);
+    // Decode a UTF-8 byte stream into Unicode codepoints. Any incomplete
+    // trailing sequence is carried over to the next call (m_utf8) so a glyph
+    // split across two PTY reads still decodes correctly.
+    std::string s = m_utf8 + text;
+    m_utf8.clear();
+
+    size_t i = 0;
+    while (i < s.size()) {
+        unsigned char b = static_cast<unsigned char>(s[i]);
+        uint32_t cp;
+        int len;
+        if (b < 0x80)            { cp = b;          len = 1; }
+        else if ((b >> 5) == 0x6){ cp = b & 0x1F;   len = 2; }
+        else if ((b >> 4) == 0xE){ cp = b & 0x0F;   len = 3; }
+        else if ((b >> 3) == 0x1E){ cp = b & 0x07;  len = 4; }
+        else                     { cp = b;          len = 1; }  // invalid lead
+
+        if (i + len > s.size()) {           // incomplete tail — save for next feed
+            m_utf8 = s.substr(i);
+            break;
+        }
+        for (int k = 1; k < len; ++k) {
+            unsigned char cb = static_cast<unsigned char>(s[i + k]);
+            if ((cb >> 6) != 0x2) { len = 1; cp = b; break; }  // bad continuation
+            cp = (cp << 6) | (cb & 0x3F);
+        }
+        m_grid.putCodepoint(cp);
+        i += len;
     }
 }
 

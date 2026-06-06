@@ -86,44 +86,62 @@ void Grid::eraseToScreenEnd() {
         m_cells[r].assign(m_cols, Cell());
 }
 
-void Grid::putChar(char c) {
-    unsigned char uc = static_cast<unsigned char>(c);
+// Scroll the whole grid up one row: drop row 0, shift everything up, blank the
+// new bottom row. Called when the cursor advances past the last row.
+void Grid::scrollUp() {
+    if (m_rows <= 0) return;
+    for (int r = 0; r < m_rows - 1; ++r)
+        m_cells[r] = m_cells[r + 1];
+    m_cells[m_rows - 1].assign(m_cols, Cell());
+}
 
-    if (c == '\n') {                 // line feed -> next row, column 0
-        m_cursorRow++;
+// Move to the next row, scrolling if we'd go past the bottom.
+void Grid::lineFeed() {
+    m_cursorRow++;
+    if (m_cursorRow >= m_rows) {
+        scrollUp();
+        m_cursorRow = m_rows - 1;
+    }
+}
+
+void Grid::putChar(char c) {
+    putCodepoint(static_cast<unsigned char>(c));
+}
+
+void Grid::putCodepoint(uint32_t cp) {
+    if (cp == '\n') {                // line feed -> next row, column 0
         m_cursorCol = 0;
-        clampCursor();
+        lineFeed();
         return;
     }
-    if (c == '\r') {                 // carriage return -> column 0
+    if (cp == '\r') {                // carriage return -> column 0
         m_cursorCol = 0;
         return;
     }
-    if (c == '\b') {                 // backspace -> move left (no erase)
+    if (cp == '\b') {                // backspace -> move left (no erase)
         if (m_cursorCol > 0) m_cursorCol--;
         return;
     }
-    if (c == '\t') {                 // tab -> next 8-column stop
+    if (cp == '\t') {               // tab -> next 8-column stop
         m_cursorCol = ((m_cursorCol / 8) + 1) * 8;
         if (m_cursorCol >= m_cols) m_cursorCol = m_cols - 1;
         return;
     }
-    if (uc < 0x20 || uc == 0x7f) {   // ignore other control chars (bell, etc.)
+    if (cp < 0x20 || cp == 0x7f) {  // ignore other control chars (bell, etc.)
         return;
     }
 
     if (m_cursorRow < m_rows && m_cursorCol < m_cols) {
         Cell& cell = m_cells[m_cursorRow][m_cursorCol];
-        cell.ch = c;
+        cell.ch = cp;
         cell.fg = m_currentFG;
         cell.bg = m_currentBG;
     }
 
     m_cursorCol++;
-    if (m_cursorCol >= m_cols) {
+    if (m_cursorCol >= m_cols) {     // wrap to next line (scroll if needed)
         m_cursorCol = 0;
-        m_cursorRow++;
-        clampCursor();
+        lineFeed();
     }
 }
 

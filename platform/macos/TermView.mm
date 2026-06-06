@@ -125,15 +125,17 @@ static NSColor* colorFromARGB(uint32_t c) {
                 NSRectFill(NSMakeRect(x, y, _cellW, _cellH));
             }
 
-            // Glyph.
-            char ch = cell.ch;
-            if (ch != ' ' && ch != '\0') {
+            // Glyph (Unicode codepoint).
+            uint32_t cp = cell.ch;
+            if (cp != ' ' && cp != 0) {
                 NSDictionary* attrs = baseAttrs;
                 if (cell.fg != 0xFFFFFFFF) {
                     attrs = @{ NSFontAttributeName: _font,
                                NSForegroundColorAttributeName: colorFromARGB(cell.fg) };
                 }
-                NSString* s = [[NSString alloc] initWithBytes:&ch length:1 encoding:NSASCIIStringEncoding];
+                NSString* s = [[NSString alloc] initWithBytes:&cp
+                                                       length:sizeof(cp)
+                                                     encoding:NSUTF32LittleEndianStringEncoding];
                 if (s) [s drawAtPoint:NSMakePoint(x, y) withAttributes:attrs];
             }
         }
