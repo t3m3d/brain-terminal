@@ -186,6 +186,31 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
             break;
         }
 
+        case EscapeType::OSC: {
+            // OSC 133 shell integration (FinalTerm): A=prompt start, D[;code]=cmd done.
+            const std::string& s = seq.osc;
+            if (s.rfind("133;", 0) == 0 && s.size() >= 5) {
+                char kind = s[4];
+                if (kind == 'A') {
+                    long line = m_grid.absScroll() + m_grid.cursorRow();
+                    m_blockMarks[line] = 0;          // 0 = idle prompt (no bar)
+                    m_lastMarkLine = line;
+                } else if (kind == 'C') {
+                    if (m_lastMarkLine >= 0)
+                        m_blockMarks[m_lastMarkLine] = 3;  // 3 = running (output started)
+                } else if (kind == 'D') {
+                    int code = 0;
+                    size_t semi = s.find(';', 4);
+                    if (semi != std::string::npos) {
+                        try { code = std::stoi(s.substr(semi + 1)); } catch (...) { code = 0; }
+                    }
+                    if (m_lastMarkLine >= 0)
+                        m_blockMarks[m_lastMarkLine] = (code == 0) ? 1 : 2;  // 1 ok, 2 fail
+                }
+            }
+            break;
+        }
+
         default:
             break;
     }

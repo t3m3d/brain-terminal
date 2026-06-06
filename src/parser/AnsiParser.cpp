@@ -31,9 +31,26 @@ void AnsiParser::feed(
             continue;
         }
 
-        // Need at least ESC + '['
+        // Need at least ESC + one more byte
         if (pos + 1 >= m_buffer.size())
             break;
+
+        // OSC: ESC ] <payload> (BEL | ESC '\')
+        if (m_buffer[pos + 1] == ']') {
+            size_t i = pos + 2; size_t termLen = 0;
+            while (i < m_buffer.size()) {
+                if (m_buffer[i] == '\x07') { termLen = 1; break; }                       // BEL
+                if (m_buffer[i] == '\x1b' && i + 1 < m_buffer.size() && m_buffer[i+1] == '\\') { termLen = 2; break; }  // ST
+                i++;
+            }
+            if (i >= m_buffer.size()) break;     // terminator not here yet — wait
+            EscapeSequence esc;
+            esc.type = EscapeType::OSC;
+            esc.osc  = m_buffer.substr(pos + 2, i - (pos + 2));
+            onEscape(esc);
+            pos = i + termLen;
+            continue;
+        }
 
         if (m_buffer[pos + 1] != '[') {
             pos += 2;

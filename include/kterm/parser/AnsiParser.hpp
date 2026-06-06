@@ -40,6 +40,9 @@ enum class EscapeType {
     SetMode,
     ResetMode,
 
+    // OSC string (ESC ] ... BEL/ST); payload in .osc (e.g. "133;A", "0;title").
+    OSC,
+
     Unknown
 };
 
@@ -66,6 +69,9 @@ struct EscapeSequence {
 
     // True for ESC[? ... (DEC private mode), used with Set/ResetMode.
     bool privateMode = false;
+
+    // OSC payload (for EscapeType::OSC).
+    std::string osc;
 };
 
 class AnsiParser {
