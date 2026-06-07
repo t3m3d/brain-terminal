@@ -152,6 +152,7 @@ Config Config::load(const std::string& path) {
         else if (key == "opacity")         c.m_opacityPercent  = to_int(val, c.m_opacityPercent);
         else if (key == "cursor_style")    c.m_cursorStyle     = val;
         else if (key == "startup_command") c.m_startupCommand  = val;
+        else if (key == "tabs")            c.m_tabsMode        = val;
         else if (key == "foreground")      c.m_foreground      = parseColor(val);
         else if (key == "background")      c.m_background      = parseColor(val);
         else if (key == "cursor_color")    c.m_cursorColor     = parseColor(val);

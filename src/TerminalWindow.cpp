@@ -6,8 +6,59 @@
 #include <QShortcut>
 #include <QKeySequence>
 #include <QCloseEvent>
+#include <cstdlib>
+#include <cctype>
+#include <string>
 
 namespace brain::ui {
+
+namespace {
+
+bool envSet(const char* k) { const char* v = std::getenv(k); return v && *v; }
+
+// True when brain is running under a tiling window manager / compositor, where
+// you split the screen with the WM itself and stacked tabs just get in the way.
+// Stacking desktops (KDE, GNOME, XFCE, Cinnamon…) return false → tabs are on.
+bool detectTilingWM() {
+    // Strong signals: a tiling compositor exports its own IPC socket.
+    if (envSet("HYPRLAND_INSTANCE_SIGNATURE")) return true;   // Hyprland
+    if (envSet("SWAYSOCK"))                    return true;   // sway
+    if (envSet("I3SOCK"))                      return true;   // i3
+    if (envSet("NIRI_SOCKET"))                 return true;   // niri
+
+    // Otherwise match the desktop name(s). XDG_CURRENT_DESKTOP is a
+    // colon-separated, case-insensitive list ("KDE", "Hyprland", "wlroots:river").
+    static const char* const tiling[] = {
+        "hyprland","sway","i3","river","niri","dwl","dwm","bspwm","awesome",
+        "xmonad","qtile","herbstluftwm","spectrwm","leftwm","wmii","ratpoison",
+        "cwm","notion","stumpwm","scrollwm","hikari","cagebreak","dk", nullptr };
+    for (const char* key : {"XDG_CURRENT_DESKTOP","XDG_SESSION_DESKTOP","DESKTOP_SESSION"}) {
+        const char* raw = std::getenv(key);
+        if (!raw || !*raw) continue;
+        std::string s(raw);
+        for (char& ch : s) ch = static_cast<char>(std::tolower((unsigned char)ch));
+        size_t start = 0;
+        while (start <= s.size()) {
+            size_t colon = s.find(':', start);
+            std::string tok = s.substr(start, colon == std::string::npos ? colon : colon - start);
+            for (const char* const* t = tiling; *t; ++t)
+                if (tok == *t) return true;
+            if (colon == std::string::npos) break;
+            start = colon + 1;
+        }
+    }
+    return false;
+}
+
+// config `tabs = auto|on|off`. auto → enabled unless a tiling WM is detected.
+bool resolveTabsEnabled(const brain::Config& cfg) {
+    const std::string& m = cfg.tabsMode();
+    if (m == "on"  || m == "true"  || m == "yes" || m == "always" || m == "enabled")  return true;
+    if (m == "off" || m == "false" || m == "no"  || m == "never"  || m == "disabled") return false;
+    return !detectTilingWM();
+}
+
+} // namespace
 
 TerminalWindow::TerminalWindow(const brain::Config& config)
     : m_config(config)
@@ -35,17 +86,24 @@ TerminalWindow::TerminalWindow(const brain::Config& config)
 
     newTab();
 
-    auto bind = [this](const QKeySequence& seq, void (TerminalWindow::*slot)()) {
-        auto* sc = new QShortcut(seq, this);
-        sc->setContext(Qt::ApplicationShortcut);
-        connect(sc, &QShortcut::activated, this, slot);
-    };
-    bind(QKeySequence("Ctrl+Shift+T"),   &TerminalWindow::newTab);
-    bind(QKeySequence("Ctrl+Shift+W"),   &TerminalWindow::closeCurrentTab);
-    bind(QKeySequence("Ctrl+Tab"),       &TerminalWindow::nextTab);
-    bind(QKeySequence("Ctrl+Shift+Tab"), &TerminalWindow::prevTab);
-    bind(QKeySequence("Ctrl+PgDown"),    &TerminalWindow::nextTab);
-    bind(QKeySequence("Ctrl+PgUp"),      &TerminalWindow::prevTab);
+    // Tabs: on for stacking desktops (KDE/GNOME/XFCE…), off for tiling WMs
+    // (Hyprland/sway/i3…) where the compositor handles splitting. `tabs` in
+    // brain.conf forces it either way. When off we simply don't register the
+    // tab keybindings — those keys fall through to the shell — and the lone
+    // tab's bar stays auto-hidden, so brain looks and behaves tab-free.
+    if (resolveTabsEnabled(config)) {
+        auto bind = [this](const QKeySequence& seq, void (TerminalWindow::*slot)()) {
+            auto* sc = new QShortcut(seq, this);
+            sc->setContext(Qt::ApplicationShortcut);
+            connect(sc, &QShortcut::activated, this, slot);
+        };
+        bind(QKeySequence("Ctrl+Shift+T"),   &TerminalWindow::newTab);
+        bind(QKeySequence("Ctrl+Shift+W"),   &TerminalWindow::closeCurrentTab);
+        bind(QKeySequence("Ctrl+Tab"),       &TerminalWindow::nextTab);
+        bind(QKeySequence("Ctrl+Shift+Tab"), &TerminalWindow::prevTab);
+        bind(QKeySequence("Ctrl+PgDown"),    &TerminalWindow::nextTab);
+        bind(QKeySequence("Ctrl+PgUp"),      &TerminalWindow::prevTab);
+    }
 
     int w = config.windowWidth()  > 0 ? config.windowWidth()  : 1000;
     int h = config.windowHeight() > 0 ? config.windowHeight() : 640;

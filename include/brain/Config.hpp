@@ -23,6 +23,9 @@ public:
     const std::string& cursorStyle()    const { return m_cursorStyle; }
     const std::string& startupCommand() const { return m_startupCommand; }
 
+    // "auto" | "on" | "off". auto = tabs everywhere except tiling WMs.
+    const std::string& tabsMode()       const { return m_tabsMode; }
+
     // Colours as 0xAARRGGBB; 0 means "unset, use the theme/default".
     uint32_t foreground()  const { return m_foreground; }
     uint32_t background()  const { return m_background; }
@@ -44,6 +47,7 @@ private:
     int         m_opacityPercent = 100;
     std::string m_cursorStyle    = "block";    // block | underline | bar
     std::string m_startupCommand = "";         // command sent to shell after spawn
+    std::string m_tabsMode       = "auto";     // auto | on | off
 
     uint32_t m_foreground  = 0;   // 0 = unset
     uint32_t m_background  = 0;
