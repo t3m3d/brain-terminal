@@ -62,6 +62,14 @@ public:
     // OSC 8 link id stamped onto every new cell until cleared (0).
     void setCurrentLink(uint16_t id) { m_currentLink = id; }
     uint16_t currentLink() const { return m_currentLink; }
+
+    // DECSTBM scroll region (0-based, inclusive). bottom < 0 → end of
+    // grid. Bounds are clamped to the actual grid size on use; the
+    // setter just records what the child asked for.
+    void setScrollRegion(int top, int bottom) {
+        m_scrollTop = top;
+        m_scrollBottom = bottom;
+    }
     void enableAttr(uint8_t flag);   // CellAttr bit
     void disableAttr(uint8_t flag);
     void resetAttributes();
@@ -110,6 +118,14 @@ private:
     int  m_historyMax = 5000;                  // configurable cap, see setHistoryMax
     long m_absScroll = 0;                      // count of lines scrolled off the top, ever
     uint64_t m_generation = 0;                 // bumped on visible content change
+
+    // DECSTBM scroll region. m_scrollBottom < 0 means "no explicit region —
+    // scroll the whole grid". Otherwise lineFeed scrolls only the rows
+    // [m_scrollTop .. effective_bottom] and rows outside the region are
+    // stationary. NOT pushed to history when the region is a proper
+    // subset of the grid (matches xterm).
+    int m_scrollTop = 0;
+    int m_scrollBottom = -1;
 
     void clampCursor();
     void lineFeed();   // advance one row, scrolling at the bottom

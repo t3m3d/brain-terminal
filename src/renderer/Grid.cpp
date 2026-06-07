@@ -68,6 +68,11 @@ void Grid::resize(int cols, int rows) {
     m_cells = std::move(next);
     m_cols = cols;
     m_rows = rows;
+    // A resize implicitly resets the scroll region — vim/less re-issue
+    // DECSTBM after a SIGWINCH, so this is correct and avoids a stuck
+    // region pointing at rows that no longer exist.
+    m_scrollTop = 0;
+    m_scrollBottom = -1;
 
     m_cursorRow -= srcStart;
     if (m_cursorRow < 0) m_cursorRow = 0;
@@ -108,8 +113,9 @@ void Grid::eraseToScreenEnd() {
     m_generation++;
 }
 
-// Scroll the whole grid up one row: drop row 0, shift everything up, blank the
-// new bottom row. Called when the cursor advances past the last row.
+// Scroll the WHOLE grid up one row: drop row 0 to history, shift, blank
+// the bottom row. Called when no explicit scroll region is active and
+// the cursor advances past the last row.
 void Grid::scrollUp() {
     if (m_rows <= 0) return;
     m_generation++;
@@ -123,12 +129,29 @@ void Grid::scrollUp() {
     m_cells[m_rows - 1].assign(m_cols, Cell());
 }
 
-// Move to the next row, scrolling if we'd go past the bottom.
+// Move to the next row. If the cursor reaches the BOTTOM of the active
+// scroll region, scroll only within the region — top row of region
+// rolls off (NOT into history; xterm behaviour) and the bottom row of
+// the region becomes blank. Rows outside the region don't move.
 void Grid::lineFeed() {
+    int top = m_scrollTop;
+    int bot = (m_scrollBottom < 0) ? m_rows - 1
+                                   : std::min(m_scrollBottom, m_rows - 1);
+    if (top < 0) top = 0;
+    if (bot < top) bot = m_rows - 1;
+
+    bool fullScreen = (top == 0 && bot == m_rows - 1);
+
     m_cursorRow++;
-    if (m_cursorRow >= m_rows) {
-        scrollUp();
-        m_cursorRow = m_rows - 1;
+    if (m_cursorRow > bot) {
+        if (fullScreen) {
+            scrollUp();
+        } else {
+            m_generation++;
+            for (int r = top; r < bot; ++r) m_cells[r] = m_cells[r + 1];
+            m_cells[bot].assign(m_cols, Cell());
+        }
+        m_cursorRow = bot;
     }
 }
 

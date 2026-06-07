@@ -180,12 +180,20 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
             if (m_decscValid) m_grid.setCursor(m_decscRow, m_decscCol);
             break;
 
-        case EscapeType::SetScrollRegion:
-            // Acknowledged; the grid scrolls the full screen for now (most
-            // TUIs that use DECSTBM also use cursor positioning to
-            // redraw, so visually they still work). Wiring real scroll
-            // regions is a TODO.
+        case EscapeType::SetScrollRegion: {
+            // CSI r — top;bottom in 1-based row coordinates. 0/missing
+            // bottom means "to the end of the screen". CSI r with no
+            // params resets the region to the full screen.
+            int top = seq.row > 0 ? seq.row - 1 : 0;
+            int bot = seq.col > 0 ? seq.col - 1 : m_rows - 1;
+            if (bot >= m_rows) bot = m_rows - 1;
+            if (top > bot) { top = 0; bot = m_rows - 1; }
+            m_grid.setScrollRegion(top, bot);
+            // DECSTBM sets the cursor at the home position of the
+            // region; xterm does this and vim depends on it.
+            m_grid.setCursor(top, 0);
             break;
+        }
 
         case EscapeType::SetFGColor:
             m_grid.setFG16(seq.color);
