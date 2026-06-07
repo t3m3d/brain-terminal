@@ -270,6 +270,81 @@ PTYHandles PTYPlatform::createPTY(const std::string& shellPath, int cols, int ro
         lpCurrentDir = homeW;
     }
 
+    // Custom environment block so terminal-detectors (kryofetch, neofetch,
+    // fastfetch, etc.) identify brain instead of inheriting WT_SESSION /
+    // ConEmuPID from whatever shell launched us. Start from the parent's
+    // env, strip the known detection vars, then append our own.
+    auto buildEnvBlock = []() -> std::vector<wchar_t> {
+        LPWCH parent = GetEnvironmentStringsW();
+        if (!parent) return {};
+
+        std::vector<wchar_t> out;
+        out.reserve(8192);
+
+        // The strings that confuse detectors (case-insensitive prefix match).
+        // Stripping them = the child sees brain as the host, not the parent
+        // shell brain.exe was launched from.
+        static const wchar_t* drop_prefixes[] = {
+            L"WT_SESSION=",
+            L"WT_PROFILE_ID=",
+            L"ConEmuPID=",
+            L"ConEmuANSI=",
+            L"ConEmuDir=",
+            L"TERM_PROGRAM=",
+            L"TERM_PROGRAM_VERSION=",
+            L"TERMINAL_EMULATOR=",
+            L"TERMUX_VERSION=",
+            L"VTE_VERSION=",
+            L"KITTY_WINDOW_ID=",
+            L"ALACRITTY_LOG=",
+            L"GHOSTTY_RESOURCES_DIR=",
+        };
+        auto starts_with_ci = [](const wchar_t* s, const wchar_t* prefix) {
+            while (*prefix) {
+                wchar_t a = *s++;
+                wchar_t b = *prefix++;
+                if (a >= L'A' && a <= L'Z') a = (wchar_t)(a + 32);
+                if (b >= L'A' && b <= L'Z') b = (wchar_t)(b + 32);
+                if (a != b) return false;
+            }
+            return true;
+        };
+
+        for (LPWCH p = parent; *p; ) {
+            bool drop = false;
+            for (auto pfx : drop_prefixes) {
+                if (starts_with_ci(p, pfx)) { drop = true; break; }
+            }
+            std::size_t len = wcslen(p);
+            if (!drop) {
+                out.insert(out.end(), p, p + len);
+                out.push_back(L'\0');
+            }
+            p += len + 1;
+        }
+        FreeEnvironmentStringsW(parent);
+
+        // Append brain's own identification.
+        auto push_var = [&](const wchar_t* kv) {
+            std::size_t n = wcslen(kv);
+            out.insert(out.end(), kv, kv + n);
+            out.push_back(L'\0');
+        };
+        push_var(L"TERM_PROGRAM=brain");
+        push_var(L"TERM_PROGRAM_VERSION=0.1.0");
+        push_var(L"TERMINAL_EMULATOR=brain");
+        // TERM controls ANSI capabilities. xterm-256color is the broadly-
+        // supported lingua franca for modern terminals.
+        push_var(L"TERM=xterm-256color");
+        push_var(L"COLORTERM=truecolor");
+
+        // Double-null terminator.
+        out.push_back(L'\0');
+        return out;
+    };
+    std::vector<wchar_t> envBlock = buildEnvBlock();
+    LPVOID lpEnvironment = envBlock.empty() ? nullptr : envBlock.data();
+
     PROCESS_INFORMATION pi{};
     BOOL ok = CreateProcessW(
         nullptr,
@@ -277,7 +352,7 @@ PTYHandles PTYPlatform::createPTY(const std::string& shellPath, int cols, int ro
         nullptr, nullptr,
         FALSE,
         EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
-        nullptr, lpCurrentDir,
+        lpEnvironment, lpCurrentDir,
         &si.StartupInfo,
         &pi);
 

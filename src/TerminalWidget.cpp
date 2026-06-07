@@ -36,22 +36,60 @@ void TerminalWidget::setupPTY() {
 
     // Launch shell from config
     m_pty.spawnShell(m_config.shell());
+
+    // Auto-run a startup command if the user configured one (e.g.
+    // `startup_command = kryofetch`). Writes it as if the user typed
+    // it at the prompt, followed by Enter. Skip if empty.
+    const std::string& startup = m_config.startupCommand();
+    if (!startup.empty()) {
+        m_pty.writeInput(startup + "\r");
+    }
 }
 
 // ------------------------------------------------------------
 // Renderer setup -- uses config.font + theme
 // ------------------------------------------------------------
 void TerminalWidget::setupRenderer() {
-    // Load font from config; force a fixed-pitch (monospace) face so the cell
-    // grid lines up.
+    // Build the font from config, but VERIFY Qt actually picked a fixed-
+    // pitch face. Qt's font matcher silently falls back to the system
+    // proportional font when the named family is absent (eg "Monospace"
+    // doesn't exist on stock Windows -> falls back to Microsoft Sans
+    // Serif, where 'M' is much wider than 'i'). The cell grid then uses
+    // M's width and we get the "M i c r o s o f t" widely-spaced look.
     QFont font(QString::fromStdString(m_config.fontFamily()),
                m_config.fontSize());
     font.setStyleHint(QFont::Monospace);
     font.setFixedPitch(true);
+
+    if (!QFontInfo(font).fixedPitch()) {
+        // Walk a per-OS fallback list of known-monospace families until we
+        // land on one that's actually installed.
+        const QStringList candidates = {
+#if defined(Q_OS_WIN)
+            "Cascadia Mono", "Consolas", "Lucida Console", "Courier New",
+#elif defined(Q_OS_MAC)
+            "Menlo", "Monaco", "Courier New",
+#else
+            "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono",
+            "Ubuntu Mono", "Courier New",
+#endif
+            "Courier",
+        };
+        for (const QString& name : candidates) {
+            QFont test(name, m_config.fontSize());
+            test.setStyleHint(QFont::Monospace);
+            test.setFixedPitch(true);
+            if (QFontInfo(test).fixedPitch()) {
+                font = test;
+                break;
+            }
+        }
+    }
     setFont(font);
 
-    // Derive the cell size from the ACTUAL font metrics. (Was a hardcoded
-    // 8x16 that didn't match the font -> overlapping rows / misaligned cols.)
+    // Derive the cell size from the ACTUAL font metrics. For a true
+    // monospace face every glyph has the same advance, so using 'M' is
+    // safe; the fallback above guarantees we actually have one.
     QFontMetrics fm(font);
     m_cellWidth  = fm.horizontalAdvance(QChar('M'));
     m_cellHeight = fm.height();
