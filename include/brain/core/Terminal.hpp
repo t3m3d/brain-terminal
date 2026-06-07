@@ -25,6 +25,14 @@ public:
     // Renderer calls this so Terminal can request repaints
     void setRenderCallback(RenderCallback cb) { m_renderCallback = std::move(cb); }
 
+    // Channel for the terminal to reply to the shell over the PTY (e.g. answer
+    // a CSI 18t/14t window-size query). The frontend wires this to PTY write.
+    using ResponseCallback = std::function<void(const std::string&)>;
+    void setResponseCallback(ResponseCallback cb) { m_responseCallback = std::move(cb); }
+
+    // Cell size in pixels, so CSI 14t (report size in pixels) can be answered.
+    void setCellPixels(int w, int h) { m_cellPxW = w; m_cellPxH = h; }
+
     // Terminal modes (DEC private) for the frontend.
     bool bracketedPaste() const { return m_bracketedPaste; }
     bool cursorVisible()  const { return m_cursorVisible; }
@@ -94,6 +102,9 @@ private:
     long m_lastMarkLine = -1;   // abs line of the most recent prompt-start (133;A)
 
     RenderCallback m_renderCallback;
+    ResponseCallback m_responseCallback;
+    int m_cellPxW = 8;    // cell pixel size, for CSI 14t replies
+    int m_cellPxH = 16;
 
     void handleText(const std::string& text);
     void applyEscape(const parser::EscapeSequence& seq);

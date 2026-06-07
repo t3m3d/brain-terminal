@@ -43,6 +43,10 @@ enum class EscapeType {
     // OSC string (ESC ] ... BEL/ST); payload in .osc (e.g. "133;A", "0;title").
     OSC,
 
+    // Window manipulation / report (CSI <n> t). .value = op: 18 = report text
+    // area size in chars, 14 = in pixels. The terminal must reply over the PTY.
+    WindowOp,
+
     Unknown
 };
 

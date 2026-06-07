@@ -100,6 +100,7 @@ func parseCSI(seq) {
         if params == "" { emit "SGR 0" }
         emit "SGR " + params
     }
+    if final == "t" { emit "WINDOW_OP " + csiNum(params, 0, 0) }
     if final == "h" { emit "SET_MODE " + csiNum(params, 0, 0) + " " + priv }
     if final == "l" { emit "RESET_MODE " + csiNum(params, 0, 0) + " " + priv }
     emit "UNKNOWN " + final

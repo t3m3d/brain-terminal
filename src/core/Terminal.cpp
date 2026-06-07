@@ -168,6 +168,21 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
             break;
         }
 
+        case EscapeType::WindowOp: {
+            // Reply to window-size queries so prompts (oh-my-posh/starship) that
+            // size their panels by querying the terminal lay out correctly.
+            if (!m_responseCallback) break;
+            int cols = m_grid.cols();
+            int rows = m_grid.rowCount();
+            if (seq.value == 18)        // report text area size in characters
+                m_responseCallback("\x1b[8;" + std::to_string(rows) + ";" +
+                                   std::to_string(cols) + "t");
+            else if (seq.value == 14)   // report text area size in pixels
+                m_responseCallback("\x1b[4;" + std::to_string(rows * m_cellPxH) + ";" +
+                                   std::to_string(cols * m_cellPxW) + "t");
+            break;
+        }
+
         case EscapeType::SGR: {
             const auto& ps = seq.params;
             for (size_t i = 0; i < ps.size(); ++i) {

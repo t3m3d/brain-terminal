@@ -173,6 +173,10 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
         case 'h': esc.type = EscapeType::SetMode;   esc.value = p(0, 0); break;
         case 'l': esc.type = EscapeType::ResetMode; esc.value = p(0, 0); break;
 
+        // Window manipulation / report (CSI 18t = size in chars, 14t = pixels).
+        // The terminal must reply over the PTY (handled in Terminal).
+        case 't': esc.type = EscapeType::WindowOp;  esc.value = p(0, 0); break;
+
         default:
             esc.type = EscapeType::Unknown;
             break;

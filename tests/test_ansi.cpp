@@ -49,6 +49,7 @@ static std::string eventStr(const EscapeSequence& e) {
         case EscapeType::SetMode:       return "SET_MODE "   + std::to_string(e.value) + " " + (e.privateMode ? "1" : "0");
         case EscapeType::ResetMode:     return "RESET_MODE " + std::to_string(e.value) + " " + (e.privateMode ? "1" : "0");
         case EscapeType::OSC:           return "OSC " + e.osc;
+        case EscapeType::WindowOp:      return "WINDOW_OP " + std::to_string(e.value);
         default:                        return "UNKNOWN";
     }
 }

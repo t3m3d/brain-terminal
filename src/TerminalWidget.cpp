@@ -22,6 +22,12 @@ TerminalWidget::TerminalWidget(const brain::Config& config, QWidget* parent)
     m_terminal.setRenderCallback([this]() {
         update();
     });
+
+    // Terminal replies to the shell over the PTY (e.g. CSI 18t/14t size queries).
+    m_terminal.setResponseCallback([this](const std::string& s) {
+        m_pty.writeInput(s);
+    });
+    m_terminal.setCellPixels(m_cellWidth, m_cellHeight);
 }
 
 // ------------------------------------------------------------
