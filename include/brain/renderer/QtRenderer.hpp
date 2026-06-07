@@ -42,6 +42,7 @@ public:
     void setCursorColor(QColor c)      { m_cursorColor = c; m_cursorColorSet = true; }
     void setCursorStyle(const std::string& s) { m_cursorStyle = s; }
     void setPadding(int x, int y)      { m_padX = x; m_padY = y; }
+    void setUseBold(bool b)            { m_useBold = b; }
     void setSelectionColors(QColor bg, QColor fg) { m_selBg = bg; m_selFg = fg; }
     QColor defaultFg() const           { return m_defaultFg; }
     QColor defaultBg() const           { return m_defaultBg; }
@@ -63,6 +64,7 @@ private:
     QColor m_selFg       = QColor(0xFF, 0xFF, 0xFF);
     std::string m_cursorStyle = "block";   // block | bar | underline
     int m_padX = 0, m_padY = 0;            // inner padding in px
+    bool m_useBold = true;                 // honour SGR 1 (bold) attribute
 
     void drawCell(QPainter& painter, int row, int col, const Cell& cell, bool selected);
 };

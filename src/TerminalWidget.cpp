@@ -119,6 +119,26 @@ void TerminalWidget::setupRenderer() {
     font.setStyleHint(QFont::Monospace);
     font.setFixedPitch(true);
 
+    // Explicit weight — without this Qt picks "closest available", which
+    // on systems with only an ExtraBold variant installed gives perma-
+    // bold rendering. Asking for Normal first makes Qt prefer Normal and
+    // fall back through the family's other weights only if needed.
+    {
+        std::string w = m_config.fontWeight();
+        for (char& c : w) c = (char)tolower((unsigned char)c);
+        int qw = QFont::Normal;
+        if      (w == "thin")        qw = QFont::Thin;
+        else if (w == "extralight")  qw = QFont::ExtraLight;
+        else if (w == "light")       qw = QFont::Light;
+        else if (w == "normal" || w == "regular") qw = QFont::Normal;
+        else if (w == "medium")      qw = QFont::Medium;
+        else if (w == "demibold" || w == "semibold") qw = QFont::DemiBold;
+        else if (w == "bold")        qw = QFont::Bold;
+        else if (w == "extrabold")   qw = QFont::ExtraBold;
+        else if (w == "black" || w == "heavy") qw = QFont::Black;
+        font.setWeight((QFont::Weight)qw);
+    }
+
     if (!QFontInfo(font).fixedPitch()) {
         const QStringList candidates = {
 #if defined(Q_OS_WIN)
@@ -166,6 +186,7 @@ void TerminalWidget::setupRenderer() {
     for (int i = 0; i < 16; ++i)
         if (m_config.paletteColor(i)) m_terminal.setPaletteColor(i, m_config.paletteColor(i));
     m_renderer->setPadding(m_config.paddingX(), m_config.paddingY());
+    m_renderer->setUseBold(m_config.useBold());
 
     // Bake window opacity into the default background alpha (compositors —
     // Hyprland/Wayland/DWM — composite this). 100 = opaque.

@@ -170,9 +170,17 @@ void QtRenderer::drawCell(QPainter& painter, int row, int col, const Cell& cell,
         painter.fillRect(x, y, m_cellWidth, m_cellHeight, m_selBg);
 
     if (cell.ch != 0 && cell.ch != ' ') {
-        if (cell.attrs & (ATTR_BOLD | ATTR_ITALIC | ATTR_UNDERLINE)) {
+        // Bold synthesis is a no-op when the base font is already DemiBold+
+        // (Qt picks an already-bold variant when the family has no Regular
+        // weight installed — perma-bold rendering is then re-bolded by
+        // SGR 1 into illegibly-thick glyphs). Disable when use_bold = no
+        // OR when the base weight already qualifies as bold.
+        bool wantBold = m_useBold
+                     && (cell.attrs & ATTR_BOLD)
+                     && (m_font.weight() < QFont::DemiBold);
+        if (wantBold || (cell.attrs & (ATTR_ITALIC | ATTR_UNDERLINE))) {
             QFont f = m_font;
-            if (cell.attrs & ATTR_BOLD)      f.setBold(true);
+            if (wantBold)                    f.setBold(true);
             if (cell.attrs & ATTR_ITALIC)    f.setItalic(true);
             if (cell.attrs & ATTR_UNDERLINE) f.setUnderline(true);
             painter.setFont(f);

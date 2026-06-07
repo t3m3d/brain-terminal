@@ -16,6 +16,8 @@ public:
     const std::string& themePath()      const { return m_themePath; }
     const std::string& fontFamily()     const { return m_fontFamily; }
     int                fontSize()       const { return m_fontSize; }
+    const std::string& fontWeight()     const { return m_fontWeight; }
+    bool               useBold()        const { return m_useBold; }
     int                windowWidth()    const { return m_windowWidth; }
     int                windowHeight()   const { return m_windowHeight; }
     int                scrollback()     const { return m_scrollback; }
@@ -41,6 +43,8 @@ private:
     std::string m_themePath;
     std::string m_fontFamily;
     int         m_fontSize       = 14;
+    std::string m_fontWeight     = "normal";   // thin/extralight/light/normal/medium/demibold/bold/extrabold/black
+    bool        m_useBold        = true;       // honour SGR 1 bold
     int         m_windowWidth    = 1000;
     int         m_windowHeight   = 640;
     int         m_scrollback     = 5000;

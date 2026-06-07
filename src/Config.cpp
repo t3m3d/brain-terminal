@@ -1,6 +1,7 @@
 #include "brain/Config.hpp"
 #include <fstream>
 #include <sstream>
+#include <cctype>
 
 using namespace brain;
 
@@ -146,6 +147,12 @@ Config Config::load(const std::string& path) {
         else if (key == "theme")           c.m_themePath       = val;
         else if (key == "font_family")     c.m_fontFamily      = val;
         else if (key == "font_size")       c.m_fontSize        = to_int(val, c.m_fontSize);
+        else if (key == "font_weight")     c.m_fontWeight      = val;
+        else if (key == "use_bold") {
+            std::string v = val;
+            for (char& ch : v) ch = (char)tolower((unsigned char)ch);
+            c.m_useBold = !(v == "no" || v == "off" || v == "false" || v == "0");
+        }
         else if (key == "window_width")    c.m_windowWidth     = to_int(val, c.m_windowWidth);
         else if (key == "window_height")   c.m_windowHeight    = to_int(val, c.m_windowHeight);
         else if (key == "scrollback")      c.m_scrollback      = to_int(val, c.m_scrollback);
