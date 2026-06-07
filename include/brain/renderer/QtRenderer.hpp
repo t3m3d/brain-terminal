@@ -13,9 +13,12 @@ class QtRenderer {
 public:
     QtRenderer(const QFont& font, int cellWidth, int cellHeight);
 
-    // Draw the entire terminal grid (cursorVisible draws the cursor block/bar/
-    // underline at the grid's cursor position).
-    void render(QPainter& painter, const Grid& grid, bool cursorVisible = true);
+    // Draw the terminal. scrollOffset>0 scrolls up into history (cursor hidden).
+    // sel* give a selection range in VIEW coordinates (row 0 = top visible row),
+    // normalized so (sr0,sc0) precedes (sr1,sc1) in reading order.
+    void render(QPainter& painter, const Grid& grid, bool cursorVisible = true,
+                int scrollOffset = 0, bool selActive = false,
+                int sr0 = 0, int sc0 = 0, int sr1 = 0, int sc1 = 0);
 
     // Resize the renderer when terminal size changes
     void resize(int cols, int rows);
@@ -52,7 +55,7 @@ private:
     std::string m_cursorStyle = "block";   // block | bar | underline
     int m_padX = 0, m_padY = 0;            // inner padding in px
 
-    void drawCell(QPainter& painter, int row, int col, const Cell& cell);
+    void drawCell(QPainter& painter, int row, int col, const Cell& cell, bool selected);
 };
 
 }

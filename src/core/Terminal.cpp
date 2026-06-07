@@ -223,8 +223,13 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
         }
 
         case EscapeType::OSC: {
-            // OSC 133 shell integration (FinalTerm): A=prompt start, D[;code]=cmd done.
             const std::string& s = seq.osc;
+            // OSC 0/2: set window/icon title ("0;title" or "2;title").
+            if ((s.rfind("0;", 0) == 0 || s.rfind("2;", 0) == 0)) {
+                if (m_titleCallback) m_titleCallback(s.substr(2));
+                break;
+            }
+            // OSC 133 shell integration (FinalTerm): A=prompt start, D[;code]=cmd done.
             if (s.rfind("133;", 0) == 0 && s.size() >= 5) {
                 char kind = s[4];
                 if (kind == 'A') {

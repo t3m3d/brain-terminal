@@ -34,6 +34,10 @@ public:
     void setCellPixels(int w, int h) { m_cellPxW = w; m_cellPxH = h; }
     void setPaletteColor(int idx, uint32_t argb) { m_grid.setPaletteColor(idx, argb); }
 
+    // Window title from OSC 0 / OSC 2.
+    using TitleCallback = std::function<void(const std::string&)>;
+    void setTitleCallback(TitleCallback cb) { m_titleCallback = std::move(cb); }
+
     // Terminal modes (DEC private) for the frontend.
     bool bracketedPaste() const { return m_bracketedPaste; }
     bool cursorVisible()  const { return m_cursorVisible; }
@@ -104,6 +108,7 @@ private:
 
     RenderCallback m_renderCallback;
     ResponseCallback m_responseCallback;
+    TitleCallback m_titleCallback;
     int m_cellPxW = 8;    // cell pixel size, for CSI 14t replies
     int m_cellPxH = 16;
 

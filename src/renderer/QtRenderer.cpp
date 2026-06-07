@@ -39,17 +39,43 @@ void QtRenderer::loadTheme(const std::string& path) {
         m_defaultBg = QColor(obj["background"].toString());
 }
 
-void QtRenderer::render(QPainter& painter, const Grid& grid, bool cursorVisible) {
+// Is view cell (r,c) inside the normalized selection [sr0,sc0]..[sr1,sc1]?
+static bool inSel(int r, int c, int sr0, int sc0, int sr1, int sc1) {
+    if (r < sr0 || r > sr1) return false;
+    if (r == sr0 && c < sc0) return false;
+    if (r == sr1 && c > sc1) return false;
+    return true;
+}
+
+void QtRenderer::render(QPainter& painter, const Grid& grid, bool cursorVisible,
+                        int scrollOffset, bool selActive,
+                        int sr0, int sc0, int sr1, int sc1) {
     painter.setFont(m_font);
 
-    const auto& rows = grid.rows();
-    for (int r = 0; r < (int)rows.size(); ++r)
-        for (int c = 0; c < (int)rows[r].size(); ++c)
-            drawCell(painter, r, c, rows[r][c]);
+    const auto& vis = grid.rows();
+    int rowCount = (int)vis.size();
+    int hist = grid.historyLines();
+    int off = scrollOffset; if (off < 0) off = 0; if (off > hist) off = hist;
 
-    // Cursor: block | bar | underline. The block cursor inverts the glyph
-    // under it for contrast.
-    if (cursorVisible) {
+    // For each visible screen row, source from history when scrolled up.
+    for (int r = 0; r < rowCount; ++r) {
+        int globalLine = hist - off + r;
+        const std::vector<Cell>* src;
+        if (globalLine >= 0 && globalLine < hist) src = &grid.historyRow(globalLine);
+        else {
+            int vi = globalLine - hist;
+            if (vi < 0 || vi >= rowCount) continue;
+            src = &vis[vi];
+        }
+        const auto& cells = *src;
+        for (int c = 0; c < (int)cells.size(); ++c)
+            drawCell(painter, r, c, cells[c],
+                     selActive && inSel(r, c, sr0, sc0, sr1, sc1));
+    }
+
+    // Cursor only in the live view (not while scrolled back).
+    if (cursorVisible && off == 0) {
+        const auto& rows = vis;
         int cr = grid.cursorRow(), cc = grid.cursorCol();
         if (cr >= 0 && cr < (int)rows.size() && cc >= 0 && cc < (int)rows[cr].size()) {
             int cx = m_padX + cc * m_cellWidth, cy = m_padY + cr * m_cellHeight;
@@ -74,7 +100,7 @@ void QtRenderer::render(QPainter& painter, const Grid& grid, bool cursorVisible)
     }
 }
 
-void QtRenderer::drawCell(QPainter& painter, int row, int col, const Cell& cell) {
+void QtRenderer::drawCell(QPainter& painter, int row, int col, const Cell& cell, bool selected) {
     int x = m_padX + col * m_cellWidth;
     int y = m_padY + row * m_cellHeight;
 
@@ -82,6 +108,7 @@ void QtRenderer::drawCell(QPainter& painter, int row, int col, const Cell& cell)
     QColor bg = ((cell.bg >> 24) == 0) ? m_defaultBg : QColor::fromRgba(cell.bg);
     QColor fg = ((cell.fg >> 24) == 0) ? m_defaultFg : QColor::fromRgba(cell.fg);
     if (cell.attrs & ATTR_INVERSE) std::swap(fg, bg);
+    if (selected) { bg = m_selBg; fg = m_selFg; }
 
     // Skip filling cells that match the default background - the paintEvent
     // base fill already covers them, and re-filling would double the alpha
