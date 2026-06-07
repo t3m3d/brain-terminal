@@ -16,12 +16,20 @@ in the C++ tree is needed to compile these.
 | File | What it is | Status |
 |------|------------|--------|
 | `terk_ansi.k` | ANSI/VT escape-sequence parser, ported 1:1 from `src/parser/AnsiParser.cpp`. Pure logic, no syscalls. | ✅ builds + self-test passes |
+| `kryofetch.k` | neofetch-style system-info command (Krypton crystal logo + ANSI colour), reads real Linux info via `exec()`/`/proc`. A terk built-in. The repo's static `krypton/kryofetch` was a Windows sample; this is the working Linux one. | ✅ runs |
 
-Run the parser self-test:
+Run them:
 
 ```sh
-kcc -r terk_ansi.k
+kcc -r terk_ansi.k     # parser self-test
+kcc -r kryofetch.k     # system info
 ```
+
+Notes on Krypton's Linux shell surface (learned building these):
+`exec(cmd)` **captures** stdout; `shellRun(cmd)` **streams** it and returns an
+exit code. `readFile` on a `/proc` virtual file returns empty (zero stat size) —
+read those via `exec("cat /proc/...")` instead. The native list-returning
+`splitBy` is unreliable, so these use hand-rolled field scanners.
 
 ## Why Krypton fits the terminal core
 
