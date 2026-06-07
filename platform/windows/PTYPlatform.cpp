@@ -201,7 +201,6 @@ std::wstring resolveShell(const std::string& shellPath) {
         return std::wstring(krShell.begin(), krShell.end());
     }
 
-    // Built-in fallback.
     static const std::string kDefault = "cmd.exe";
     return std::wstring(kDefault.begin(), kDefault.end());
 }

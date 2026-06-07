@@ -53,7 +53,6 @@ TerminalWidget::TerminalWidget(const brain::Config& config, QWidget* parent)
         update();
     });
 
-    // Terminal replies to the shell over the PTY (e.g. CSI 18t/14t size queries).
     m_terminal.setResponseCallback([this](const std::string& s) {
         m_pty.writeInput(s);
     });
@@ -98,6 +97,15 @@ void TerminalWidget::setupPTY() {
                 QTimer::singleShot(120, this, [this, startup]() {
                     m_pty.writeInput(startup + "\r");
                 });
+            } else {
+                // No startup command — but cmd.exe under ConPTY usually
+                // never prints a prompt on its own (ConPTY emits its
+                // framing and waits for cmd; cmd waits for input). Nudge
+                // it inline (not via QTimer — cmd's prompt depends on us
+                // doing this on the same callback that primed the
+                // pipeline). Harmless under pwsh / bash — they just
+                // re-emit their prompt.
+                m_pty.writeInput("\r");
             }
         }
 
@@ -251,10 +259,24 @@ void TerminalWidget::keyPressEvent(QKeyEvent* e) {
 // Resize
 // ---------------------------------------------------------------------------
 void TerminalWidget::resizeEvent(QResizeEvent*) {
+    // Skip the resize entirely while the widget has no real size yet —
+    // Qt fires a 0x0 resizeEvent on construction before the layout
+    // settles. If we forwarded that to the PTY we'd ResizePseudoConsole
+    // to 1x1; ConPTY echoes back CSI 8;1;1 t which the child reads as
+    // "lay out for 1x1 cells", and the banner / prompt collapse to a
+    // single invisible cell. Waiting for a real geometry avoids the
+    // collapse — the next resize event (with actual width/height) will
+    // do the work.
+    if (width() <= 0 || height() <= 0 || m_cellWidth < 1 || m_cellHeight < 1) return;
+
     int cols = (width()  - 2 * m_config.paddingX()) / m_cellWidth;
     int rows = (height() - 2 * m_config.paddingY()) / m_cellHeight;
-    if (cols < 1) cols = 1;
-    if (rows < 1) rows = 1;
+
+    // Defence-in-depth: never let cols/rows drop below a usable minimum.
+    // 20x6 is small enough to be a tiny window but large enough that the
+    // shell can still print a prompt; cmd/pwsh both layout fine at this size.
+    if (cols < 20) cols = 20;
+    if (rows < 6)  rows = 6;
 
     m_terminal.resize(cols, rows);
     if (m_renderer) m_renderer->resize(cols, rows);
