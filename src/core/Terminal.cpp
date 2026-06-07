@@ -109,6 +109,14 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
             break;
         }
 
+        case EscapeType::CursorColumn:   // CHA: absolute column (1-based)
+            m_grid.setCursor(m_grid.cursorRow(), std::max(0, seq.value - 1));
+            break;
+
+        case EscapeType::CursorRow:      // VPA: absolute row (1-based)
+            m_grid.setCursor(std::max(0, seq.value - 1), m_grid.cursorCol());
+            break;
+
         case EscapeType::ClearScreen:
             // ESC[J: only 2/3 clear the whole screen. 0 (the one shells emit on
             // every prompt redraw) erases cursor -> end of screen, not all.

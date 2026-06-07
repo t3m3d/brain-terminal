@@ -14,6 +14,8 @@ enum class EscapeType {
     CursorForward,
     CursorBack,
     SetCursorPos,
+    CursorColumn,   // CSI n G  (CHA) - absolute column, 1-based
+    CursorRow,      // CSI n d  (VPA) - absolute row, 1-based
 
     // Screen operations
     ClearScreen,

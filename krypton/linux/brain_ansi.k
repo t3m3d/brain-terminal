@@ -91,6 +91,8 @@ func parseCSI(seq) {
     if final == "B" { emit "CURSOR_DOWN " + csiNum(params, 0, 1) }
     if final == "C" { emit "CURSOR_FWD " + csiNum(params, 0, 1) }
     if final == "D" { emit "CURSOR_BACK " + csiNum(params, 0, 1) }
+    if final == "G" { emit "CURSOR_COL " + csiNum(params, 0, 1) }
+    if final == "d" { emit "CURSOR_ROW " + csiNum(params, 0, 1) }
     if final == "H" || final == "f" {
         emit "SET_CURSOR " + csiNum(params, 0, 1) + " " + csiNum(params, 1, 1)
     }
