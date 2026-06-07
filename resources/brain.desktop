@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=brain
+GenericName=Terminal
+Comment=brain terminal emulator
+Exec=brain
+Icon=brain
+Terminal=false
+Categories=System;TerminalEmulator;
+Keywords=shell;prompt;command;cmd;terminal;
+StartupNotify=true
+StartupWMClass=brain

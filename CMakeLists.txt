@@ -32,8 +32,10 @@ file(GLOB_RECURSE HEADERS
 # Qt6 discovery
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
-# Executable
-qt_add_executable(brain ${SOURCES} ${HEADERS})
+# Executable. The .qrc embeds the app icon (AUTORCC compiles it in) so the
+# in-window / taskbar icon loads without depending on the launch directory.
+qt_add_executable(brain ${SOURCES} ${HEADERS}
+    ${PROJECT_SOURCE_DIR}/resources/brain.qrc)
 
 # Include directories (modern style)
 target_include_directories(brain PRIVATE
@@ -113,6 +115,19 @@ install(DIRECTORY
     resources/icons
     DESTINATION share/brain
 )
+
+# Freedesktop integration (Linux): a .desktop entry + the hicolor icon theme
+# are what let a Wayland compositor (Hyprland/sway) and bars/launchers map the
+# window's app_id ("brain") to an icon. main.cpp sets the matching app_id via
+# QGuiApplication::setDesktopFileName("brain").
+if (UNIX AND NOT APPLE)
+    install(FILES resources/brain.desktop
+            DESTINATION share/applications)
+    foreach(_sz 16 24 32 48 64 128 256)
+        install(FILES resources/icons/hicolor/${_sz}x${_sz}/apps/brain.png
+                DESTINATION share/icons/hicolor/${_sz}x${_sz}/apps)
+    endforeach()
+endif()
 
 # ── Tests (ctest) ──────────────────────────────────────────────────────
 # Pure-logic unit tests; no Qt needed. Also the cross-validation oracle for

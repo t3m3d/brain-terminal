@@ -11,6 +11,10 @@
 #   ./build_linux.sh --run        # ... then launch ./build-linux/brain
 #   ./build_linux.sh --test       # ... then build + run the ctest suite
 #   ./build_linux.sh --clean      # wipe build-linux first
+#   ./build_linux.sh --install-desktop   # install .desktop + hicolor icons
+#                                 # into ~/.local/share so the brain icon
+#                                 # shows in your bar / launcher / alt-tab
+#                                 # (needed on Wayland: Hyprland, sway)
 #
 # Prereqs: see BUILD_LINUX.md. Short version:
 #   Arch:   sudo pacman -S --needed base-devel cmake qt6-base
@@ -24,11 +28,13 @@ BUILD_DIR="$SCRIPT_DIR/build-linux"
 CLEAN=0
 RUN=0
 TEST=0
+INSTALL_DESKTOP=0
 for arg in "$@"; do
     case "$arg" in
         --clean) CLEAN=1 ;;
         --run)   RUN=1 ;;
         --test)  TEST=1 ;;
+        --install-desktop) INSTALL_DESKTOP=1 ;;
         -h|--help)
             grep '^#' "${BASH_SOURCE[0]}" | sed 's|^# \?||'
             exit 0 ;;
@@ -87,6 +93,25 @@ if [[ $TEST -eq 1 ]]; then
     echo "build_linux.sh: running tests (ctest)..."
     cmake --build . --target test_ansi -- -j"$(nproc 2>/dev/null || echo 2)"
     ctest --output-on-failure
+fi
+
+if [[ $INSTALL_DESKTOP -eq 1 ]]; then
+    echo "build_linux.sh: installing desktop entry + hicolor icons (user)..."
+    DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
+    install -Dm644 "$SCRIPT_DIR/resources/brain.desktop" "$DATA/applications/brain.desktop"
+    # Point Exec at the actual built binary so launching from a menu works,
+    # without requiring brain on $PATH. app_id matching uses StartupWMClass.
+    sed -i "s|^Exec=.*|Exec=$BUILD_DIR/brain|" "$DATA/applications/brain.desktop"
+    for sz in 16 24 32 48 64 128 256; do
+        src="$SCRIPT_DIR/resources/icons/hicolor/${sz}x${sz}/apps/brain.png"
+        [[ -f "$src" ]] && install -Dm644 "$src" \
+            "$DATA/icons/hicolor/${sz}x${sz}/apps/brain.png"
+    done
+    command -v gtk-update-icon-cache >/dev/null 2>&1 \
+        && gtk-update-icon-cache -f -t "$DATA/icons/hicolor" >/dev/null 2>&1 || true
+    command -v update-desktop-database >/dev/null 2>&1 \
+        && update-desktop-database "$DATA/applications" >/dev/null 2>&1 || true
+    echo "build_linux.sh: installed brain.desktop + icons under $DATA"
 fi
 
 if [[ $RUN -eq 1 ]]; then
