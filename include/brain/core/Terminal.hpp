@@ -57,6 +57,15 @@ public:
     bool bracketedPaste() const { return m_bracketedPaste; }
     bool cursorVisible()  const { return m_cursorVisible; }
 
+    // Mouse reporting (DEC 1000 click, 1002 drag, 1003 any-motion; 1006 SGR
+    // encoding). 0 = off. mouseReport() builds the escape to send over the PTY.
+    // button: 0 left,1 middle,2 right,64 wheel-up,65 wheel-down. col/row 1-based.
+    // mods: shift=4, alt=8, ctrl=16.
+    int  mouseMode() const { return m_mouseMode; }
+    bool mouseSGR()  const { return m_mouseSGR; }
+    std::string mouseReport(int button, int col, int row, bool press,
+                            bool motion, int mods) const;
+
     // OSC 133 command blocks. Status of the block CONTAINING an absolute line:
     // -1 none, 0 idle prompt (no bar), 1 success (exit 0), 2 failure (nonzero),
     // 3 running. Returns the status of the nearest prompt-start mark at/above.
@@ -116,6 +125,8 @@ private:
     std::string m_utf8;   // incomplete trailing UTF-8 sequence carried between feeds
     bool m_bracketedPaste = false;
     bool m_cursorVisible  = true;
+    int  m_mouseMode = 0;     // 0 off, else 1000/1002/1003
+    bool m_mouseSGR  = false; // DEC 1006 SGR encoding
 
     // OSC 133 command blocks: prompt-start absolute line -> status (0 run,1 ok,2 fail).
     std::map<long, int> m_blockMarks;

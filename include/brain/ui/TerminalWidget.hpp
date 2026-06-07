@@ -75,6 +75,7 @@ private:
 
     void copySelectionToClipboard();
     void pasteFromClipboard(bool primary = false);
+    bool reportMouse(QMouseEvent* e, int button, bool press, bool motion);
     void applyFontSize(int pt);
     int  m_currentFontSize = 14;
     QString selectionText() const;

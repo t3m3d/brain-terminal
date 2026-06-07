@@ -303,7 +303,36 @@ static QString urlAt(const QString& rowText, int col) {
     return {};
 }
 
+static int mouseMods(Qt::KeyboardModifiers m) {
+    int v = 0;
+    if (m & Qt::ShiftModifier)   v += 4;
+    if (m & Qt::AltModifier)     v += 8;
+    if (m & Qt::ControlModifier) v += 16;
+    return v;
+}
+
+// Screen (1-based) col/row of a mouse event, for mouse reporting. Returns
+// false if the click is above the live grid (scrolled back).
+bool TerminalWidget::reportMouse(QMouseEvent* e, int button, bool press, bool motion) {
+    if (m_terminal.mouseMode() == 0) return false;
+    if (e->modifiers() & Qt::ShiftModifier) return false;   // Shift = local select
+    SelPoint sp = pixelToCell(e->pos());
+    int viewRow = (int)(sp.absRow -
+                  ((long long)m_terminal.grid().absScroll() - m_viewportOffset));
+    if (viewRow < 0 || viewRow >= m_terminal.grid().rowCount()) return false;
+    m_pty.writeInput(m_terminal.mouseReport(button, sp.col + 1, viewRow + 1,
+                                            press, motion, mouseMods(e->modifiers())));
+    return true;
+}
+
+static int qtButtonCode(Qt::MouseButton b) {
+    return b == Qt::LeftButton ? 0 : b == Qt::MiddleButton ? 1 : b == Qt::RightButton ? 2 : 0;
+}
+
 void TerminalWidget::mousePressEvent(QMouseEvent* e) {
+    // App mouse reporting consumes the click (Shift forces local selection).
+    if (reportMouse(e, qtButtonCode(e->button()), true, false)) return;
+
     // Ctrl+click → open URL. First check the cell's OSC 8 link id (set
     // by ls --hyperlink, gh, git, etc), then fall back to a regex scan
     // of the row text.
@@ -351,6 +380,13 @@ void TerminalWidget::mousePressEvent(QMouseEvent* e) {
 }
 
 void TerminalWidget::mouseMoveEvent(QMouseEvent* e) {
+    // Drag reporting (1002/1003) while a button is held.
+    if (m_terminal.mouseMode() >= 1002 && e->buttons() != Qt::NoButton) {
+        int b = (e->buttons() & Qt::LeftButton) ? 0 :
+                (e->buttons() & Qt::MiddleButton) ? 1 :
+                (e->buttons() & Qt::RightButton) ? 2 : 0;
+        if (reportMouse(e, b, true, true)) return;
+    }
     if (!m_selecting) return;
     m_selFocus = pixelToCell(e->pos());
     m_hasSelection = (m_selFocus.absRow != m_selAnchor.absRow
@@ -359,6 +395,7 @@ void TerminalWidget::mouseMoveEvent(QMouseEvent* e) {
 }
 
 void TerminalWidget::mouseReleaseEvent(QMouseEvent* e) {
+    if (reportMouse(e, qtButtonCode(e->button()), false, false)) return;
     if (e->button() != Qt::LeftButton) return;
     m_selecting = false;
     setMouseTracking(false);
@@ -391,6 +428,23 @@ void TerminalWidget::wheelEvent(QWheelEvent* e) {
         // Trackpads emit small angle deltas; floor them so users still scroll.
         notches = (e->angleDelta().y() > 0) ? 1 : -1;
     }
+
+    // While an app reports the mouse and we're at the live tail, send the
+    // wheel as button 64 (up) / 65 (down) instead of scrolling our scrollback.
+    if (m_terminal.mouseMode() > 0 && m_viewportOffset == 0
+        && !(e->modifiers() & Qt::ShiftModifier)) {
+        SelPoint sp = pixelToCell(e->position().toPoint());
+        int viewRow = (int)(sp.absRow -
+                      ((long long)m_terminal.grid().absScroll() - m_viewportOffset));
+        if (viewRow >= 0) {
+            int b = notches > 0 ? 64 : 65;
+            for (int i = 0; i < std::abs(notches); ++i)
+                m_pty.writeInput(m_terminal.mouseReport(b, sp.col + 1, viewRow + 1,
+                                                        true, false, mouseMods(e->modifiers())));
+            return;
+        }
+    }
+
     int delta = notches * 3;
 
     int newOffset = m_viewportOffset + delta;

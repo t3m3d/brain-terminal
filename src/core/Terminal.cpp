@@ -1,5 +1,6 @@
 #include "brain/core/Terminal.hpp"
 #include <algorithm>
+#include <cstdio>
 
 using namespace brain::core;
 
@@ -239,6 +240,13 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
                     case 25:   m_cursorVisible  = on; break;
                     case 2004: m_bracketedPaste = on; break;
 
+                    // Mouse reporting: 1000 click, 1002 button-drag, 1003 any
+                    // motion; 1006 switches to SGR encoding.
+                    case 1000:
+                    case 1002:
+                    case 1003: m_mouseMode = on ? seq.value : 0; break;
+                    case 1006: m_mouseSGR  = on; break;
+
                     // Alternate screen buffer variants. 1049 also saves /
                     // restores the cursor and clears the alt buffer on
                     // entry, which is what xterm does and what vim/less
@@ -383,4 +391,22 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
         default:
             break;
     }
+}
+
+std::string Terminal::mouseReport(int button, int col, int row, bool press,
+                                  bool motion, int mods) const {
+    if (m_mouseMode == 0) return "";
+    int b = button + (motion ? 32 : 0) + mods;
+    char buf[64];
+    if (m_mouseSGR) {
+        std::snprintf(buf, sizeof buf, "\x1b[<%d;%d;%d%c", b, col, row,
+                      press ? 'M' : 'm');
+    } else {
+        int bb = press ? b : (3 + (motion ? 32 : 0) + mods);
+        if (col > 223) col = 223;
+        if (row > 223) row = 223;
+        std::snprintf(buf, sizeof buf, "\x1b[M%c%c%c",
+                      (char)(32 + bb), (char)(32 + col), (char)(32 + row));
+    }
+    return buf;
 }
