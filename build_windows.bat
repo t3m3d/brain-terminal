@@ -1,5 +1,5 @@
 @echo off
-:: build_windows.bat - build brain-terminal (terk) on Windows.
+:: build_windows.bat - build brain-terminal (brain) on Windows.
 ::
 :: Mirrors build_linux.sh. brain-terminal is a Qt6 / C++20 app; this
 :: script standardises the cmake invocation against the Visual Studio
