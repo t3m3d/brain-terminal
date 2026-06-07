@@ -1,5 +1,6 @@
 #include "kterm/renderer/QtRenderer.hpp"
 #include <QPainter>
+#include <QFontMetrics>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -9,6 +10,7 @@ using namespace kterm::renderer;
 QtRenderer::QtRenderer(const QFont& font, int cw, int ch)
     : m_font(font), m_cellWidth(cw), m_cellHeight(ch)
 {
+    m_ascent = QFontMetrics(font).ascent();
 }
 
 void QtRenderer::resize(int cols, int rows) {
@@ -51,17 +53,17 @@ void QtRenderer::drawCell(QPainter& painter, int row, int col, const Cell& cell)
     int x = col * m_cellWidth;
     int y = row * m_cellHeight;
 
-    QColor bg(cell.bg);
-    if (bg.alpha() == 0) bg = m_defaultBg;
-
-    QColor fg(cell.fg);
-    if (fg.alpha() == 0) fg = m_defaultFg;
+    // cell.fg/bg are 0xAARRGGBB; alpha 0 means "use the terminal default".
+    // (QColor(QRgb) forces alpha to 255, so the old alpha()==0 check was dead;
+    // read the high byte directly and use fromRgba for real colours.)
+    QColor bg = ((cell.bg >> 24) == 0) ? m_defaultBg : QColor::fromRgba(cell.bg);
+    QColor fg = ((cell.fg >> 24) == 0) ? m_defaultFg : QColor::fromRgba(cell.fg);
 
     painter.fillRect(x, y, m_cellWidth, m_cellHeight, bg);
     painter.setPen(fg);
 
     if (cell.ch != 0) {
         char32_t cp = cell.ch;
-        painter.drawText(x, y + m_cellHeight - 2, QString::fromUcs4(&cp, 1));
+        painter.drawText(x, y + m_ascent, QString::fromUcs4(&cp, 1));
     }
 }

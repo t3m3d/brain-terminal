@@ -25,6 +25,7 @@ private:
     QFont m_font;
     int m_cellWidth;
     int m_cellHeight;
+    int m_ascent = 0;   // font baseline offset, for crisp text placement
 
     int m_cols = 80;
     int m_rows = 24;

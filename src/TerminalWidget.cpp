@@ -2,6 +2,7 @@
 #include <QPainter>
 #include <QKeyEvent>
 #include <QFont>
+#include <QFontMetrics>
 
 namespace kterm::ui {
 
@@ -41,12 +42,23 @@ void TerminalWidget::setupPTY() {
 // Renderer setup -- uses config.font + theme
 // ------------------------------------------------------------
 void TerminalWidget::setupRenderer() {
-    // Load font from config
+    // Load font from config; force a fixed-pitch (monospace) face so the cell
+    // grid lines up.
     QFont font(QString::fromStdString(m_config.fontFamily()),
                m_config.fontSize());
+    font.setStyleHint(QFont::Monospace);
+    font.setFixedPitch(true);
     setFont(font);
 
-    // Create renderer
+    // Derive the cell size from the ACTUAL font metrics. (Was a hardcoded
+    // 8x16 that didn't match the font -> overlapping rows / misaligned cols.)
+    QFontMetrics fm(font);
+    m_cellWidth  = fm.horizontalAdvance(QChar('M'));
+    m_cellHeight = fm.height();
+    if (m_cellWidth  < 1) m_cellWidth  = 1;
+    if (m_cellHeight < 1) m_cellHeight = 1;
+
+    // Create renderer with the real cell dimensions
     m_renderer = new renderer::QtRenderer(font, m_cellWidth, m_cellHeight);
 
     // Load theme from config
