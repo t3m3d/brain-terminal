@@ -17,12 +17,15 @@ in the C++ tree is needed to compile these.
 |------|------------|--------|
 | `terk_ansi.k` | ANSI/VT escape-sequence parser, ported 1:1 from `src/parser/AnsiParser.cpp`. Pure logic, no syscalls. | ✅ builds + self-test passes |
 | `kryofetch.k` | neofetch-style system-info command (Krypton crystal logo + ANSI colour), reads real Linux info via `exec()`/`/proc`. A terk built-in. The repo's static `krypton/kryofetch` was a Windows sample; this is the working Linux one. | ✅ runs |
+| `terk_prompt.k` | native shell prompt: user@host, `~`-shortened cwd, git branch + dirty `*`, exit-status-coloured `❯`, and an OSC 133 prompt-start marker (lights up terk's command-block UI). | ✅ runs |
 
 Run them:
 
 ```sh
-kcc -r terk_ansi.k     # parser self-test
-kcc -r kryofetch.k     # system info
+kcc -r terk_ansi.k                 # parser self-test
+kcc -r kryofetch.k                 # system info
+kcc -o terk_prompt terk_prompt.k   # compile the prompt, then:
+#   bash: PS1='$(terk_prompt $?)'  ($? passes the last exit code as arg 0)
 ```
 
 Notes on Krypton's Linux shell surface (learned building these):

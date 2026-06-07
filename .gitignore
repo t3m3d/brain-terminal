@@ -7,3 +7,4 @@ build-linux/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
+krypton/linux/terk_prompt
