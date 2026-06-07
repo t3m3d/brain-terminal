@@ -4,6 +4,13 @@ project(terk LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Qt meta-object compiler: TerminalWidget uses Q_OBJECT, so moc must run to
+# generate its vtable / signals-slots. Without this the link fails with
+# "undefined reference to vtable for ...".
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
 # Warnings
 if (MSVC)
     add_compile_options(/W4)
@@ -16,11 +23,17 @@ file(GLOB_RECURSE SOURCES
     "${PROJECT_SOURCE_DIR}/src/*.cpp"
 )
 
+# Headers too, so AUTOMOC scans the Q_OBJECT classes (TerminalWidget) directly
+# rather than relying on include-resolution through the .cpp.
+file(GLOB_RECURSE HEADERS
+    "${PROJECT_SOURCE_DIR}/include/*.hpp"
+)
+
 # Qt6 discovery
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
 # Executable
-qt_add_executable(terk ${SOURCES})
+qt_add_executable(terk ${SOURCES} ${HEADERS})
 
 # Include directories (modern style)
 target_include_directories(terk PRIVATE

@@ -36,7 +36,7 @@ void QtRenderer::loadTheme(const std::string& path) {
         m_defaultBg = QColor(obj["background"].toString());
 }
 
-void QtRenderer::render(QPainter& painter, const core::Grid& grid) {
+void QtRenderer::render(QPainter& painter, const Grid& grid) {
     painter.setFont(m_font);
 
     const auto& rows = grid.rows();
@@ -47,7 +47,7 @@ void QtRenderer::render(QPainter& painter, const core::Grid& grid) {
     }
 }
 
-void QtRenderer::drawCell(QPainter& painter, int row, int col, const core::Cell& cell) {
+void QtRenderer::drawCell(QPainter& painter, int row, int col, const Cell& cell) {
     int x = col * m_cellWidth;
     int y = row * m_cellHeight;
 
@@ -61,6 +61,7 @@ void QtRenderer::drawCell(QPainter& painter, int row, int col, const core::Cell&
     painter.setPen(fg);
 
     if (cell.ch != 0) {
-        painter.drawText(x, y + m_cellHeight - 2, QString(cell.ch));
+        char32_t cp = cell.ch;
+        painter.drawText(x, y + m_cellHeight - 2, QString::fromUcs4(&cp, 1));
     }
 }

@@ -24,10 +24,10 @@ TerminalWidget::TerminalWidget(const kterm::Config& config, QWidget* parent)
 }
 
 // ------------------------------------------------------------
-// PTY setup — uses config.shell()
+// PTY setup -- uses config.shell()
 // ------------------------------------------------------------
 void TerminalWidget::setupPTY() {
-    // PTY → Terminal
+    // PTY -> Terminal
     m_pty.setOutputCallback([this](const std::vector<char>& data) {
         m_terminal.onPTYOutput(data);
         update();
@@ -38,7 +38,7 @@ void TerminalWidget::setupPTY() {
 }
 
 // ------------------------------------------------------------
-// Renderer setup — uses config.font + theme
+// Renderer setup -- uses config.font + theme
 // ------------------------------------------------------------
 void TerminalWidget::setupRenderer() {
     // Load font from config
@@ -54,7 +54,7 @@ void TerminalWidget::setupRenderer() {
 }
 
 // ------------------------------------------------------------
-// Paint event — draw terminal grid
+// Paint event -- draw terminal grid
 // ------------------------------------------------------------
 void TerminalWidget::paintEvent(QPaintEvent*) {
     QPainter painter(this);
@@ -65,7 +65,7 @@ void TerminalWidget::paintEvent(QPaintEvent*) {
 }
 
 // ------------------------------------------------------------
-// Keyboard → PTY
+// Keyboard -> PTY
 // ------------------------------------------------------------
 void TerminalWidget::keyPressEvent(QKeyEvent* e) {
     using namespace kterm::input;

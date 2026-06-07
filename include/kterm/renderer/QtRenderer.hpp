@@ -13,7 +13,7 @@ public:
     QtRenderer(const QFont& font, int cellWidth, int cellHeight);
 
     // Draw the entire terminal grid
-    void render(QPainter& painter, const core::Grid& grid);
+    void render(QPainter& painter, const Grid& grid);
 
     // Resize the renderer when terminal size changes
     void resize(int cols, int rows);
@@ -34,7 +34,7 @@ private:
     QColor m_defaultBg = QColor(0, 0, 0);
 
     // Draw a single cell
-    void drawCell(QPainter& painter, int row, int col, const core::Cell& cell);
+    void drawCell(QPainter& painter, int row, int col, const Cell& cell);
 };
 
 }

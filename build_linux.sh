@@ -52,8 +52,12 @@ done
 
 # Qt6 path probing — cmake will give a clearer error if missing, but
 # surface it up front so users don't waste a minute on the configure step.
-if ! cmake --find-package -DNAME=Qt6 -DCOMPILER_ID=GNU -DLANGUAGE=CXX -DMODE=EXIST >/dev/null 2>&1; then
-    echo "build_linux.sh: Qt6 not found by cmake — install qt6-base." >&2
+# `cmake --find-package` is deprecated and unreliable (false negatives on
+# modern CMake/Qt). Probe with pkg-config, then fall back to looking for
+# Qt6Config.cmake in the usual lib dirs.
+if ! pkg-config --exists Qt6Core 2>/dev/null \
+   && ! ls /usr/lib*/cmake/Qt6/Qt6Config.cmake /usr/lib/*/cmake/Qt6/Qt6Config.cmake >/dev/null 2>&1; then
+    echo "build_linux.sh: Qt6 not found - install qt6-base." >&2
     echo "  Arch:   sudo pacman -S --needed qt6-base" >&2
     echo "  Debian: sudo apt install qt6-base-dev" >&2
     exit 1

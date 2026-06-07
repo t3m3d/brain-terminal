@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
     QDir().mkpath(configDir);   // creates directory if missing
 
     // ------------------------------------------------------------
-    // Load config (search order: user → local → built-in)
+    // Load config (search order: user -> local -> built-in)
     // ------------------------------------------------------------
 
     kterm::Config config = kterm::Config::load("");

@@ -8,28 +8,28 @@ namespace kterm::parser {
 enum class EscapeType {
     Text,
 
-    // Cursor movement
+    // Cursor movement
     CursorUp,
     CursorDown,
     CursorForward,
     CursorBack,
     SetCursorPos,
 
-    // Screen operations
+    // Screen operations
     ClearScreen,
     ClearLine,
 
-    // Basic 16-color SGR
+    // Basic 16-color SGR
     SetFGColor,
     SetBGColor,
 
-    // Extended color modes
+    // Extended color modes
     SetFGColor256,
     SetBGColor256,
     SetFGTrueColor,
     SetBGTrueColor,
 
-    // Reset
+    // Reset
     ResetAttributes,
 
     // Full SGR (colors + text attributes); all params in .params
@@ -49,17 +49,17 @@ enum class EscapeType {
 struct EscapeSequence {
     EscapeType type = EscapeType::Unknown;
 
-    // Generic numeric value (cursor movement, etc.)
+    // Generic numeric value (cursor movement, etc.)
     int value = 0;
 
-    // Cursor positioning
+    // Cursor positioning
     int row = 0;
     int col = 0;
 
-    // Color index (0–255)
+    // Color index (0-255)
     int color = 0;
 
-    // Truecolor RGB
+    // Truecolor RGB
     int r = 0;
     int g = 0;
     int b = 0;
