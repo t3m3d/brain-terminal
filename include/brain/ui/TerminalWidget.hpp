@@ -74,7 +74,9 @@ private:
     void hookTerminalSignals();
 
     void copySelectionToClipboard();
-    void pasteFromClipboard();
+    void pasteFromClipboard(bool primary = false);
+    void applyFontSize(int pt);
+    int  m_currentFontSize = 14;
     QString selectionText() const;
     SelPoint pixelToCell(const QPoint& p) const;
 

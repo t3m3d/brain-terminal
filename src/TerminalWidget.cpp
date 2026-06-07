@@ -149,6 +149,7 @@ void TerminalWidget::setupRenderer() {
     m_renderer = new renderer::QtRenderer(font, m_cellWidth, m_cellHeight);
     m_renderer->loadTheme(m_config.themePath());
     m_renderer->setCursorStyle(m_config.cursorStyle());
+    m_currentFontSize = m_config.fontSize();
 
     // Config colour overrides (0 = unset).
     if (m_config.foreground())  m_renderer->setDefaultFg(QColor::fromRgba(m_config.foreground()));
@@ -216,6 +217,14 @@ void TerminalWidget::keyPressEvent(QKeyEvent* e) {
     if ((e->modifiers() & Qt::ControlModifier) && e->key() == Qt::Key_F) {
         openFindBar();
         return;
+    }
+
+    // Ctrl + / Ctrl - / Ctrl 0 — live font-size adjust (zoom).
+    if (e->modifiers() & Qt::ControlModifier) {
+        int k = e->key();
+        if (k == Qt::Key_Plus || k == Qt::Key_Equal) { applyFontSize(m_currentFontSize + 1); return; }
+        if (k == Qt::Key_Minus)                      { applyFontSize(m_currentFontSize - 1); return; }
+        if (k == Qt::Key_0)                          { applyFontSize(m_config.fontSize()); return; }
     }
 
     Modifier mod = Modifier::None;
@@ -324,6 +333,12 @@ void TerminalWidget::mousePressEvent(QMouseEvent* e) {
                 return;
             }
         }
+    }
+
+    // Middle-click → primary-selection paste (X11/Wayland convention).
+    if (e->button() == Qt::MiddleButton) {
+        pasteFromClipboard(true);
+        return;
     }
 
     if (e->button() != Qt::LeftButton) return;
@@ -446,13 +461,17 @@ QString TerminalWidget::selectionText() const {
 void TerminalWidget::copySelectionToClipboard() {
     QString t = selectionText();
     if (t.isEmpty()) return;
-    QApplication::clipboard()->setText(t);
+    QClipboard* cb = QApplication::clipboard();
+    cb->setText(t);
+    if (cb->supportsSelection())
+        cb->setText(t, QClipboard::Selection);
 }
 
-void TerminalWidget::pasteFromClipboard() {
-    QString t = QApplication::clipboard()->text();
+void TerminalWidget::pasteFromClipboard(bool primary) {
+    QClipboard::Mode mode = primary ? QClipboard::Selection : QClipboard::Clipboard;
+    if (primary && !QApplication::clipboard()->supportsSelection()) return;
+    QString t = QApplication::clipboard()->text(mode);
     if (t.isEmpty()) return;
-    // Normalize line endings — most shells want \r, not \r\n / \n.
     t.replace(QStringLiteral("\r\n"), QStringLiteral("\r"));
     t.replace('\n', '\r');
 
@@ -466,6 +485,40 @@ void TerminalWidget::pasteFromClipboard() {
         m_viewportOffset = 0;
         update();
     }
+}
+
+void TerminalWidget::applyFontSize(int pt) {
+    if (pt < 5)  pt = 5;
+    if (pt > 64) pt = 64;
+    if (pt == m_currentFontSize && m_renderer) return;
+    m_currentFontSize = pt;
+
+    QFont font = this->font();
+    font.setPointSize(pt);
+    setFont(font);
+
+    QFontMetrics fm(font);
+    m_cellWidth  = std::max(1, fm.horizontalAdvance(QChar('M')));
+    m_cellHeight = std::max(1, fm.height());
+
+    delete m_renderer;
+    m_renderer = new renderer::QtRenderer(font, m_cellWidth, m_cellHeight);
+    m_renderer->loadTheme(m_config.themePath());
+    m_renderer->setCursorStyle(m_config.cursorStyle());
+    if (m_config.foreground())  m_renderer->setDefaultFg(QColor::fromRgba(m_config.foreground()));
+    if (m_config.background())  m_renderer->setDefaultBg(QColor::fromRgba(m_config.background()));
+    if (m_config.cursorColor()) m_renderer->setCursorColor(QColor::fromRgba(m_config.cursorColor()));
+    if (m_config.selectionBg() || m_config.selectionFg()) {
+        m_renderer->setSelectionColors(
+            m_config.selectionBg() ? QColor::fromRgba(m_config.selectionBg()) : QColor(0x44,0x44,0x66),
+            m_config.selectionFg() ? QColor::fromRgba(m_config.selectionFg()) : QColor(0xFF,0xFF,0xFF));
+    }
+    m_renderer->setPadding(m_config.paddingX(), m_config.paddingY());
+
+    // Re-grid based on the new cell metrics.
+    resizeEvent(nullptr);
+    m_terminal.setCellPixels(m_cellWidth, m_cellHeight);
+    update();
 }
 
 // ---------------------------------------------------------------------------
