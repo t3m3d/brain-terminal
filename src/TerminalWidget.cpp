@@ -182,12 +182,16 @@ void TerminalWidget::paintEvent(QPaintEvent*) {
     QPainter painter(this);
 
     if (m_renderer) {
-        // Base fill establishes the (optionally semi-transparent) background.
-        // CompositionMode_Source REPLACES pixels, so transparent alpha reaches
-        // the compositor and successive frames don't accumulate opacity.
-        painter.setCompositionMode(QPainter::CompositionMode_Source);
-        painter.fillRect(rect(), m_renderer->defaultBg());
-        painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        // For opaque windows the renderer's own fillRect at the top of
+        // renderWithView is enough. For translucent ones we need the
+        // CompositionMode_Source replace-pixels trick to keep alpha
+        // intact across frames; otherwise SourceOver stacks alpha each
+        // frame until everything goes opaque. Pick the right path.
+        if (testAttribute(Qt::WA_TranslucentBackground)) {
+            painter.setCompositionMode(QPainter::CompositionMode_Source);
+            painter.fillRect(rect(), m_renderer->defaultBg());
+            painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        }
 
         m_renderer->renderWithView(
             painter,

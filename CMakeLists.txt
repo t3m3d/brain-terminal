@@ -58,6 +58,12 @@ target_link_libraries(brain PRIVATE
 # from the child shell renders Unicode correctly without per-call IAT
 # thunking (see platform/windows/brain-terminal.manifest).
 if (WIN32)
+    # GUI subsystem — no parent console allocated on launch. Without
+    # this, double-clicking brain.exe briefly flashes a cmd-window
+    # ghost; worse, brain.exe inherits the launcher's console handles
+    # and the ConPTY child can race with the inherited stdio.
+    set_target_properties(brain PROPERTIES WIN32_EXECUTABLE TRUE)
+
     target_link_libraries(brain PRIVATE
         Ws2_32
         Iphlpapi
