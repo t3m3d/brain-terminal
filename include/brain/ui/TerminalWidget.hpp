@@ -13,6 +13,8 @@
 class QMouseEvent;
 class QWheelEvent;
 class QFocusEvent;
+class QLineEdit;
+class QLabel;
 
 namespace brain::ui {
 
@@ -39,6 +41,7 @@ protected:
     void wheelEvent(QWheelEvent*) override;
     void focusInEvent(QFocusEvent*) override;
     void focusOutEvent(QFocusEvent*) override;
+    bool eventFilter(QObject*, QEvent*) override;
 
 private:
     brain::Config m_config;
@@ -74,6 +77,22 @@ private:
     void pasteFromClipboard();
     QString selectionText() const;
     SelPoint pixelToCell(const QPoint& p) const;
+
+    // Find-in-scrollback. The bar is a QLineEdit child positioned at the
+    // top-right of the widget; toggled with Ctrl+F, dismissed with Esc.
+    void openFindBar();
+    void closeFindBar();
+    void findNext();
+    void findPrev();
+    bool findFromAbs(long long fromAbsRow, int fromCol,
+                     int dir,
+                     const QString& needle,
+                     long long& outAbsRow, int& outStartCol, int& outEndCol) const;
+    void scrollIntoView(long long absRow);
+    void positionFindBar();
+
+    QLineEdit* m_findEdit  = nullptr;
+    QLabel*    m_findCount = nullptr;
 };
 
 }

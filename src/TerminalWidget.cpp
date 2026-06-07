@@ -13,6 +13,11 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QRegularExpression>
+#include <QLineEdit>
+#include <QLabel>
+#include <QHBoxLayout>
+#include <QFrame>
+#include <QResizeEvent>
 #include <algorithm>
 
 namespace brain::ui {
@@ -169,6 +174,11 @@ void TerminalWidget::keyPressEvent(QKeyEvent* e) {
         if (e->key() == Qt::Key_V) { pasteFromClipboard();       return; }
     }
 
+    if ((e->modifiers() & Qt::ControlModifier) && e->key() == Qt::Key_F) {
+        openFindBar();
+        return;
+    }
+
     Modifier mod = Modifier::None;
     if      (e->modifiers() & Qt::ControlModifier) mod = Modifier::Ctrl;
     else if (e->modifiers() & Qt::AltModifier)     mod = Modifier::Alt;
@@ -197,6 +207,7 @@ void TerminalWidget::resizeEvent(QResizeEvent*) {
     m_terminal.resize(cols, rows);
     if (m_renderer) m_renderer->resize(cols, rows);
     m_pty.resize(cols, rows);
+    positionFindBar();
 }
 
 // ---------------------------------------------------------------------------
@@ -416,6 +427,220 @@ void TerminalWidget::pasteFromClipboard() {
         m_viewportOffset = 0;
         update();
     }
+}
+
+// ---------------------------------------------------------------------------
+// Find-in-scrollback
+// ---------------------------------------------------------------------------
+void TerminalWidget::positionFindBar() {
+    if (!m_findEdit) return;
+    QWidget* bar = m_findEdit->parentWidget();   // the frame, see openFindBar
+    if (!bar) return;
+    int barW = std::min(420, width() - 20);
+    int barH = bar->sizeHint().height();
+    bar->setGeometry(width() - barW - 10, 10, barW, barH);
+    bar->raise();
+}
+
+void TerminalWidget::openFindBar() {
+    if (m_findEdit) {
+        m_findEdit->parentWidget()->show();
+        m_findEdit->setFocus();
+        m_findEdit->selectAll();
+        positionFindBar();
+        return;
+    }
+    // Frame so we get a solid background over the cell grid.
+    auto* frame = new QFrame(this);
+    frame->setFrameShape(QFrame::Panel);
+    frame->setStyleSheet(
+        "QFrame { background: #1e1e1e; border: 1px solid #4a4a4a; }"
+        "QLineEdit { background: #2a2a2a; color: #f0f0f0; border: 0; }"
+        "QLabel { color: #b0b0b0; }");
+    auto* lay = new QHBoxLayout(frame);
+    lay->setContentsMargins(8, 4, 8, 4);
+    lay->setSpacing(8);
+
+    auto* label = new QLabel("Find:", frame);
+    m_findEdit  = new QLineEdit(frame);
+    m_findEdit->setPlaceholderText("type to search scrollback…");
+    m_findCount = new QLabel("", frame);
+    m_findCount->setMinimumWidth(60);
+
+    lay->addWidget(label);
+    lay->addWidget(m_findEdit, 1);
+    lay->addWidget(m_findCount);
+
+    connect(m_findEdit, &QLineEdit::textChanged, this, [this](const QString& s) {
+        if (s.isEmpty()) { m_hasSelection = false; m_findCount->setText(""); update(); return; }
+        findNext();
+    });
+    connect(m_findEdit, &QLineEdit::returnPressed, this, [this]() {
+        if (QApplication::keyboardModifiers() & Qt::ShiftModifier) findPrev();
+        else findNext();
+    });
+
+    // Esc closes — install as event filter rather than reimplementing
+    // keyPressEvent on QLineEdit.
+    m_findEdit->installEventFilter(this);
+
+    positionFindBar();
+    frame->show();
+    m_findEdit->setFocus();
+}
+
+void TerminalWidget::closeFindBar() {
+    if (!m_findEdit) return;
+    m_findEdit->parentWidget()->hide();
+    setFocus();
+}
+
+void TerminalWidget::findNext() {
+    if (!m_findEdit) return;
+    QString needle = m_findEdit->text();
+    if (needle.isEmpty()) return;
+
+    long long startAbs;
+    int startCol;
+    if (m_hasSelection) {
+        // Resume after the current match's end.
+        SelPoint a = m_selAnchor, b = m_selFocus;
+        if (a.absRow > b.absRow || (a.absRow == b.absRow && a.col > b.col)) std::swap(a, b);
+        startAbs = b.absRow;
+        startCol = b.col + 1;
+    } else {
+        startAbs = (long long)m_terminal.grid().absScroll() - m_viewportOffset;
+        startCol = 0;
+    }
+
+    long long hitRow; int hitStart, hitEnd;
+    if (findFromAbs(startAbs, startCol, +1, needle, hitRow, hitStart, hitEnd)) {
+        m_selAnchor = { hitRow, hitStart };
+        m_selFocus  = { hitRow, hitEnd };
+        m_hasSelection = true;
+        scrollIntoView(hitRow);
+        m_findCount->setText("match");
+        update();
+    } else {
+        m_findCount->setText("no match");
+    }
+}
+
+void TerminalWidget::findPrev() {
+    if (!m_findEdit) return;
+    QString needle = m_findEdit->text();
+    if (needle.isEmpty()) return;
+
+    long long startAbs;
+    int startCol;
+    if (m_hasSelection) {
+        SelPoint a = m_selAnchor, b = m_selFocus;
+        if (a.absRow > b.absRow || (a.absRow == b.absRow && a.col > b.col)) std::swap(a, b);
+        startAbs = a.absRow;
+        startCol = a.col - 1;
+    } else {
+        startAbs = (long long)m_terminal.grid().absScroll();
+        startCol = m_terminal.grid().cols() - 1;
+    }
+
+    long long hitRow; int hitStart, hitEnd;
+    if (findFromAbs(startAbs, startCol, -1, needle, hitRow, hitStart, hitEnd)) {
+        m_selAnchor = { hitRow, hitStart };
+        m_selFocus  = { hitRow, hitEnd };
+        m_hasSelection = true;
+        scrollIntoView(hitRow);
+        m_findCount->setText("match");
+        update();
+    } else {
+        m_findCount->setText("no match");
+    }
+}
+
+// Single-row substring search across history + live grid. Returns the
+// first match at-or-beyond (fromAbsRow, fromCol) when dir == +1, or
+// at-or-before when dir == -1. Match coordinates are absolute.
+bool TerminalWidget::findFromAbs(long long fromAbsRow, int fromCol, int dir,
+                                 const QString& needle,
+                                 long long& outAbsRow, int& outStartCol, int& outEndCol) const {
+    const auto& grid = m_terminal.grid();
+    int histRows = grid.historyLines();
+    int liveRows = grid.rowCount();
+    long long topAbs = grid.absScroll() - histRows;
+    long long botAbs = grid.absScroll() + liveRows - 1;
+
+    auto rowAt = [&](long long abs) -> const std::vector<renderer::Cell>* {
+        long long idx = abs - topAbs;
+        if (idx < 0 || idx >= histRows + liveRows) return nullptr;
+        if (idx < histRows) return &grid.historyRow((int)idx);
+        return &grid.rows()[(int)(idx - histRows)];
+    };
+    auto rowText = [&](long long abs) -> QString {
+        const auto* row = rowAt(abs);
+        if (!row) return {};
+        QString s;
+        for (const auto& c : *row) {
+            uint32_t cp = c.ch ? c.ch : ' ';
+            s += QString::fromUcs4(reinterpret_cast<const char32_t*>(&cp), 1);
+        }
+        return s;
+    };
+
+    long long r = std::clamp<long long>(fromAbsRow, topAbs, botAbs);
+    int n = needle.length();
+    Qt::CaseSensitivity cs = Qt::CaseInsensitive;
+    while (r >= topAbs && r <= botAbs) {
+        QString rt = rowText(r);
+        if (dir > 0) {
+            int hit = rt.indexOf(needle, (r == fromAbsRow ? fromCol : 0), cs);
+            if (hit >= 0) {
+                outAbsRow   = r;
+                outStartCol = hit;
+                outEndCol   = hit + n - 1;
+                return true;
+            }
+            ++r;
+        } else {
+            int end = (r == fromAbsRow ? fromCol + n : rt.length());
+            int hit = rt.lastIndexOf(needle, end, cs);
+            if (hit >= 0) {
+                outAbsRow   = r;
+                outStartCol = hit;
+                outEndCol   = hit + n - 1;
+                return true;
+            }
+            --r;
+        }
+    }
+    return false;
+}
+
+void TerminalWidget::scrollIntoView(long long absRow) {
+    long long topVisible = (long long)m_terminal.grid().absScroll() - m_viewportOffset;
+    long long botVisible = topVisible + m_terminal.grid().rowCount() - 1;
+    if (absRow >= topVisible && absRow <= botVisible) return;
+
+    long long desiredTop;
+    if (absRow < topVisible) {
+        // Scroll back so the match sits ~1/3 down the screen.
+        desiredTop = absRow - m_terminal.grid().rowCount() / 3;
+    } else {
+        desiredTop = absRow - 2 * m_terminal.grid().rowCount() / 3;
+    }
+    long long offset = (long long)m_terminal.grid().absScroll() - desiredTop;
+    if (offset < 0) offset = 0;
+    if (offset > m_terminal.grid().historyLines()) offset = m_terminal.grid().historyLines();
+    m_viewportOffset = (int)offset;
+}
+
+bool TerminalWidget::eventFilter(QObject* obj, QEvent* ev) {
+    if (m_findEdit && obj == m_findEdit && ev->type() == QEvent::KeyPress) {
+        auto* ke = static_cast<QKeyEvent*>(ev);
+        if (ke->key() == Qt::Key_Escape) {
+            closeFindBar();
+            return true;
+        }
+    }
+    return QWidget::eventFilter(obj, ev);
 }
 
 } // namespace brain::ui
