@@ -114,8 +114,10 @@ void Grid::scrollUp() {
     if (m_rows <= 0) return;
     m_generation++;
     m_absScroll++;                                    // one more line off the top
-    m_history.push_back(m_cells[0]);                  // keep the scrolled-off row
-    if (m_history.size() > 5000) m_history.pop_front();
+    if (m_historyMax > 0) {
+        m_history.push_back(m_cells[0]);              // keep the scrolled-off row
+        if ((int)m_history.size() > m_historyMax) m_history.pop_front();
+    }
     for (int r = 0; r < m_rows - 1; ++r)
         m_cells[r] = m_cells[r + 1];
     m_cells[m_rows - 1].assign(m_cols, Cell());

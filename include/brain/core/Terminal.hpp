@@ -38,6 +38,8 @@ public:
     // Most-recent window title set by the child (OSC 0 / OSC 2).
     const std::string& title() const { return m_title; }
 
+    void setScrollback(int n) { m_grid.setHistoryMax(n); }
+
     // Terminal modes (DEC private) for the frontend.
     bool bracketedPaste() const { return m_bracketedPaste; }
     bool cursorVisible()  const { return m_cursorVisible; }

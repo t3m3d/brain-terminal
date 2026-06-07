@@ -8,25 +8,26 @@
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
 
-
-    // ------------------------------------------------------------
-    // Step 7: Ensure user config directory exists
-    // ------------------------------------------------------------
-
     QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
-    QDir().mkpath(configDir);   // creates directory if missing
-
-    // ------------------------------------------------------------
-    // Load config (search order: user -> local -> built-in)
-    // ------------------------------------------------------------
+    QDir().mkpath(configDir);
 
     brain::Config config = brain::Config::load("");
 
-    // ------------------------------------------------------------
-    // Create the main window and pass config to it
-    // ------------------------------------------------------------
     brain::ui::TerminalWindow win(config);
-    win.show();
 
+    // Window opacity. 100 % is fully opaque (default). Below that, Qt asks
+    // the compositor to alpha-blend the entire window; on Windows this
+    // works under DWM out of the box. Values <40 % are reading-difficult
+    // against most desktops; we still respect them, the user gets to
+    // pick. 0 means "use the default" (opaque) — guards against an
+    // accidentally-zero conf entry making the window invisible.
+    int op = config.opacityPercent();
+    if (op > 0 && op < 100) {
+        qreal v = op / 100.0;
+        if (v < 0.1) v = 0.1;        // floor, see note above
+        win.setWindowOpacity(v);
+    }
+
+    win.show();
     return app.exec();
 }

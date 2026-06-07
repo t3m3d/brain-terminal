@@ -1,0 +1,7 @@
+{
+  "name": "Solarized Dark",
+  "foreground":   "#839496",
+  "background":   "#002b36",
+  "selection_bg": "#073642c0",
+  "cursor":       "#93a1a1"
+}

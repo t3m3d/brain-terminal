@@ -34,6 +34,10 @@ public:
     void resize(int cols, int rows);
     void loadTheme(const std::string& path);
 
+    // Cursor style: 0 = block, 1 = underline, 2 = bar (vertical i-beam).
+    enum CursorStyle { CursorBlock = 0, CursorUnderline = 1, CursorBar = 2 };
+    void setCursorStyle(CursorStyle s) { m_cursorStyle = s; }
+
     // Theme accessors (used to derive selection background, dim text, etc).
     QColor defaultFg() const { return m_defaultFg; }
     QColor defaultBg() const { return m_defaultBg; }
@@ -51,6 +55,7 @@ private:
     QColor m_defaultBg = QColor(0, 0, 0);
     QColor m_selectionBg = QColor(70, 90, 140, 180);   // semi-transparent blue
     QColor m_cursorColor = QColor(220, 220, 220);
+    CursorStyle m_cursorStyle = CursorBlock;
 
     void drawCell(QPainter& painter, int row, int col, const Cell& cell, bool selected);
 };

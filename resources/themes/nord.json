@@ -1,0 +1,7 @@
+{
+  "name": "Nord",
+  "foreground":   "#d8dee9",
+  "background":   "#2e3440",
+  "selection_bg": "#4c566ab0",
+  "cursor":       "#d8dee9"
+}

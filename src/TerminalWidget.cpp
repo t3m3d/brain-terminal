@@ -10,6 +10,9 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QStringList>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QRegularExpression>
 #include <algorithm>
 
 namespace brain::ui {
@@ -24,6 +27,10 @@ TerminalWidget::TerminalWidget(const brain::Config& config, QWidget* parent)
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(false);   // moveEvents only while a button is held
     setAttribute(Qt::WA_OpaquePaintEvent, true);
+
+    // Honour user-configured scrollback before any PTY output arrives.
+    // 0 disables scrollback entirely (matches "set --no-scrollback" UX).
+    if (m_config.scrollback() >= 0) m_terminal.setScrollback(m_config.scrollback());
 
     setupRenderer();
     setupPTY();
@@ -122,6 +129,12 @@ void TerminalWidget::setupRenderer() {
 
     m_renderer = new renderer::QtRenderer(font, m_cellWidth, m_cellHeight);
     m_renderer->loadTheme(m_config.themePath());
+
+    // cursor_style ∈ {block, underline, bar}. Default block.
+    const std::string& cs = m_config.cursorStyle();
+    if      (cs == "underline") m_renderer->setCursorStyle(renderer::QtRenderer::CursorUnderline);
+    else if (cs == "bar")       m_renderer->setCursorStyle(renderer::QtRenderer::CursorBar);
+    else                        m_renderer->setCursorStyle(renderer::QtRenderer::CursorBlock);
 }
 
 // ---------------------------------------------------------------------------
@@ -205,12 +218,58 @@ TerminalWidget::SelPoint TerminalWidget::pixelToCell(const QPoint& p) const {
     return sp;
 }
 
+// URL pattern. Conservative — http(s)/ftp/file schemes and anything that
+// looks domain-y. Avoids the punctuation-spillover pitfall by trimming
+// trailing .,;:!?)]>" once the regex matches.
+static QString urlAt(const QString& rowText, int col) {
+    static const QRegularExpression re(
+        R"((?:https?|ftp|file)://[^\s)>\]"<>]+)",
+        QRegularExpression::CaseInsensitiveOption);
+    auto it = re.globalMatch(rowText);
+    while (it.hasNext()) {
+        auto m = it.next();
+        if (col >= m.capturedStart() && col < m.capturedEnd()) {
+            QString u = m.captured();
+            while (!u.isEmpty()) {
+                QChar tail = u.back();
+                if (tail == '.' || tail == ',' || tail == ';' ||
+                    tail == ':' || tail == '!' || tail == '?' ||
+                    tail == ')' || tail == ']' || tail == '"') {
+                    u.chop(1);
+                } else break;
+            }
+            return u;
+        }
+    }
+    return {};
+}
+
 void TerminalWidget::mousePressEvent(QMouseEvent* e) {
+    // Ctrl+click → open URL under cursor in the default browser. No
+    // visual underline yet; that ships with OSC 8 in a follow-up.
+    if (e->button() == Qt::LeftButton && (e->modifiers() & Qt::ControlModifier)) {
+        SelPoint sp = pixelToCell(e->pos());
+        int row = sp.absRow - ((long long)m_terminal.grid().absScroll() - m_viewportOffset);
+        if (row >= 0 && row < m_terminal.grid().rowCount()) {
+            const auto& cells = m_terminal.grid().rows()[row];
+            QString text;
+            for (const auto& cell : cells) {
+                uint32_t cp = cell.ch ? cell.ch : ' ';
+                text += QString::fromUcs4(reinterpret_cast<const char32_t*>(&cp), 1);
+            }
+            QString u = urlAt(text, sp.col);
+            if (!u.isEmpty()) {
+                QDesktopServices::openUrl(QUrl(u));
+                return;   // do NOT start a selection on this click
+            }
+        }
+    }
+
     if (e->button() != Qt::LeftButton) return;
     m_selAnchor = pixelToCell(e->pos());
     m_selFocus  = m_selAnchor;
     m_selecting = true;
-    m_hasSelection = false;   // not "selected" until the user drags
+    m_hasSelection = false;
     setMouseTracking(true);
     update();
 }

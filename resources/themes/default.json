@@ -1,0 +1,7 @@
+{
+  "name": "brain default",
+  "foreground":   "#dcdcdc",
+  "background":   "#0c0c0c",
+  "selection_bg": "#3a4a78c0",
+  "cursor":       "#dcdcdc"
+}

@@ -115,7 +115,8 @@ void QtRenderer::renderWithView(
     }
 
     // Cursor — only when viewing the live tail (back == 0) and the visible
-    // grid agrees the cursor is on-screen.
+    // grid agrees the cursor is on-screen. Focused → solid, unfocused →
+    // outlined. Style picks the shape (block/underline/bar).
     if (cursorVisible && back == 0) {
         int cr = grid.cursorRow();
         int cc = grid.cursorCol();
@@ -123,19 +124,38 @@ void QtRenderer::renderWithView(
             int x = cc * m_cellWidth;
             int y = cr * m_cellHeight;
             QColor cur = m_cursorColor;
+
             if (focused) {
-                painter.fillRect(x, y, m_cellWidth, m_cellHeight, cur);
-                // Re-draw the glyph under the cursor in the background colour
-                // for contrast.
-                const auto* row = cellAt(cr);
-                if (row && cc < (int)row->size() && (*row)[cc].ch > ' ') {
-                    painter.setPen(m_defaultBg);
-                    char32_t cp = (*row)[cc].ch;
-                    painter.drawText(x, y + m_ascent, QString::fromUcs4(&cp, 1));
+                painter.setPen(Qt::NoPen);
+                if (m_cursorStyle == CursorBar) {
+                    painter.fillRect(x, y, 2, m_cellHeight, cur);
+                } else if (m_cursorStyle == CursorUnderline) {
+                    painter.fillRect(x, y + m_cellHeight - 2,
+                                     m_cellWidth, 2, cur);
+                } else {
+                    painter.fillRect(x, y, m_cellWidth, m_cellHeight, cur);
+                    // Re-draw the glyph under a block cursor in the
+                    // background colour for contrast.
+                    const auto* row = cellAt(cr);
+                    if (row && cc < (int)row->size() && (*row)[cc].ch > ' ') {
+                        painter.setPen(m_defaultBg);
+                        char32_t cp = (*row)[cc].ch;
+                        painter.drawText(x, y + m_ascent,
+                                         QString::fromUcs4(&cp, 1));
+                    }
                 }
             } else {
+                // Unfocused — outline only, same shape as focused state.
                 painter.setPen(cur);
-                painter.drawRect(x, y, m_cellWidth - 1, m_cellHeight - 1);
+                painter.setBrush(Qt::NoBrush);
+                if (m_cursorStyle == CursorBar) {
+                    painter.drawRect(x, y, 1, m_cellHeight - 1);
+                } else if (m_cursorStyle == CursorUnderline) {
+                    painter.drawRect(x, y + m_cellHeight - 2,
+                                     m_cellWidth - 1, 1);
+                } else {
+                    painter.drawRect(x, y, m_cellWidth - 1, m_cellHeight - 1);
+                }
             }
         }
     }

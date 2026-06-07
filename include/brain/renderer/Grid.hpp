@@ -73,6 +73,10 @@ public:
     // Scrollback history (rows that scrolled off the top).
     int historyLines() const { return (int)m_history.size(); }
     const std::vector<Cell>& historyRow(int i) const { return m_history[i]; }
+    void setHistoryMax(int n) {
+        m_historyMax = (n < 0) ? 0 : n;
+        while ((int)m_history.size() > m_historyMax) m_history.pop_front();
+    }
 
     // Total lines ever scrolled off the top (for stable absolute line numbers).
     long absScroll() const { return m_absScroll; }
@@ -98,6 +102,7 @@ private:
 
     std::vector<std::vector<Cell>> m_cells;
     std::deque<std::vector<Cell>> m_history;   // scrolled-off rows (oldest..newest)
+    int  m_historyMax = 5000;                  // configurable cap, see setHistoryMax
     long m_absScroll = 0;                      // count of lines scrolled off the top, ever
     uint64_t m_generation = 0;                 // bumped on visible content change
 

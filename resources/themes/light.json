@@ -1,0 +1,7 @@
+{
+  "name": "brain light",
+  "foreground":   "#222222",
+  "background":   "#fafafa",
+  "selection_bg": "#a0c0ffc0",
+  "cursor":       "#222222"
+}
