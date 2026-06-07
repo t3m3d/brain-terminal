@@ -178,6 +178,7 @@ void Grid::putCodepoint(uint32_t cp) {
         cell.fg = m_currentFG;
         cell.bg = m_currentBG;
         cell.attrs = m_currentAttrs;
+        cell.link = m_currentLink;
         m_generation++;
     }
 

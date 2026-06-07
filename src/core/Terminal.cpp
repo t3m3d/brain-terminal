@@ -294,6 +294,25 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
         case EscapeType::OSC: {
             const std::string& s = seq.osc;
 
+            // OSC 8 — in-band hyperlinks. Format: 8;params;URI
+            // The params field is for id=… (re-using an id across runs)
+            // and is currently ignored. Empty URI clears the link.
+            if (s.size() >= 2 && s[0] == '8' && s[1] == ';') {
+                size_t semi = s.find(';', 2);
+                std::string uri = (semi == std::string::npos)
+                                ? std::string()
+                                : s.substr(semi + 1);
+                if (uri.empty()) {
+                    m_grid.setCurrentLink(0);
+                } else {
+                    uint16_t id = m_nextLinkId++;
+                    if (id == 0) id = m_nextLinkId++;   // skip the reserved 0
+                    m_linkUris[id] = uri;
+                    m_grid.setCurrentLink(id);
+                }
+                break;
+            }
+
             // OSC 0 / OSC 1 / OSC 2 — set window/icon title.
             //   0;text  set both icon and window title
             //   1;text  set icon title only

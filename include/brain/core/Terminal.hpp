@@ -40,6 +40,13 @@ public:
 
     void setScrollback(int n) { m_grid.setHistoryMax(n); }
 
+    // OSC 8 link id → URI. Returns empty string if id is unknown or 0.
+    const std::string& linkUri(uint16_t id) const {
+        static const std::string empty;
+        auto it = m_linkUris.find(id);
+        return it == m_linkUris.end() ? empty : it->second;
+    }
+
     // Terminal modes (DEC private) for the frontend.
     bool bracketedPaste() const { return m_bracketedPaste; }
     bool cursorVisible()  const { return m_cursorVisible; }
@@ -107,6 +114,14 @@ private:
     // OSC 133 command blocks: prompt-start absolute line -> status (0 run,1 ok,2 fail).
     std::map<long, int> m_blockMarks;
     long m_lastMarkLine = -1;   // abs line of the most recent prompt-start (133;A)
+
+    // OSC 8 hyperlink table. id 0 is reserved for "no link". Allocated
+    // sequentially; 16-bit wrap is fine — old entries simply get reused
+    // and any cells still pointing at them resolve to the new URI. With
+    // 64 K capacity this only matters on multi-hour ls --hyperlink
+    // sessions and the wrap is correct, not corrupting.
+    std::map<uint16_t, std::string> m_linkUris;
+    uint16_t m_nextLinkId = 1;
 
     RenderCallback m_renderCallback;
     TitleCallback  m_titleCallback;

@@ -185,7 +185,7 @@ void QtRenderer::drawCell(QPainter& painter, int row, int col, const Cell& cell,
         char32_t cp = cell.ch;
         painter.drawText(x, y + m_ascent, QString::fromUcs4(&cp, 1));
 
-        if (cell.attrs & ATTR_UNDERLINE) {
+        if ((cell.attrs & ATTR_UNDERLINE) || cell.link != 0) {
             int uy = y + m_ascent + 2;
             if (uy > y + m_cellHeight - 1) uy = y + m_cellHeight - 1;
             painter.drawLine(x, uy, x + m_cellWidth, uy);

@@ -58,6 +58,10 @@ public:
     void setBGTrue(int r, int g, int b);
     void setFGDefault();
     void setBGDefault();
+
+    // OSC 8 link id stamped onto every new cell until cleared (0).
+    void setCurrentLink(uint16_t id) { m_currentLink = id; }
+    uint16_t currentLink() const { return m_currentLink; }
     void enableAttr(uint8_t flag);   // CellAttr bit
     void disableAttr(uint8_t flag);
     void resetAttributes();
@@ -94,7 +98,8 @@ private:
     uint32_t m_currentFG;
     uint32_t m_currentBG;
     uint8_t  m_currentAttrs = 0;   // CellAttr flags applied to new cells
-    bool     m_wrapPending = false; // deferred wrap: cursor parked in last column
+    uint16_t m_currentLink  = 0;   // OSC 8 hyperlink id stamped on new cells
+    bool     m_wrapPending  = false; // deferred wrap: cursor parked in last column
 
     // Palettes
     uint32_t palette16[16];

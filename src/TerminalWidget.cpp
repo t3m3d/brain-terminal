@@ -245,13 +245,24 @@ static QString urlAt(const QString& rowText, int col) {
 }
 
 void TerminalWidget::mousePressEvent(QMouseEvent* e) {
-    // Ctrl+click → open URL under cursor in the default browser. No
-    // visual underline yet; that ships with OSC 8 in a follow-up.
+    // Ctrl+click → open URL. First check the cell's OSC 8 link id (set
+    // by ls --hyperlink, gh, git, etc), then fall back to a regex scan
+    // of the row text.
     if (e->button() == Qt::LeftButton && (e->modifiers() & Qt::ControlModifier)) {
         SelPoint sp = pixelToCell(e->pos());
         int row = sp.absRow - ((long long)m_terminal.grid().absScroll() - m_viewportOffset);
         if (row >= 0 && row < m_terminal.grid().rowCount()) {
             const auto& cells = m_terminal.grid().rows()[row];
+            if (sp.col >= 0 && sp.col < (int)cells.size()) {
+                uint16_t link = cells[sp.col].link;
+                if (link) {
+                    const std::string& uri = m_terminal.linkUri(link);
+                    if (!uri.empty()) {
+                        QDesktopServices::openUrl(QUrl(QString::fromStdString(uri)));
+                        return;
+                    }
+                }
+            }
             QString text;
             for (const auto& cell : cells) {
                 uint32_t cp = cell.ch ? cell.ch : ' ';
@@ -260,7 +271,7 @@ void TerminalWidget::mousePressEvent(QMouseEvent* e) {
             QString u = urlAt(text, sp.col);
             if (!u.isEmpty()) {
                 QDesktopServices::openUrl(QUrl(u));
-                return;   // do NOT start a selection on this click
+                return;
             }
         }
     }
