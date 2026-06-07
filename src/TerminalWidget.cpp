@@ -97,16 +97,11 @@ void TerminalWidget::setupPTY() {
                 QTimer::singleShot(120, this, [this, startup]() {
                     m_pty.writeInput(startup + "\r");
                 });
-            } else {
-                // No startup command — but cmd.exe under ConPTY usually
-                // never prints a prompt on its own (ConPTY emits its
-                // framing and waits for cmd; cmd waits for input). Nudge
-                // it inline (not via QTimer — cmd's prompt depends on us
-                // doing this on the same callback that primed the
-                // pipeline). Harmless under pwsh / bash — they just
-                // re-emit their prompt.
-                m_pty.writeInput("\r");
             }
+            // No "\r" nudge any more — that was a workaround for the
+            // WIN32_EXECUTABLE bug where cmd's stdio was being captured
+            // by the parent console. Now cmd emits its banner+prompt
+            // on its own; an extra CR here would print a second prompt.
         }
 
         update();
