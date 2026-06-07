@@ -83,7 +83,11 @@ void QtRenderer::drawCell(QPainter& painter, int row, int col, const Cell& cell)
     QColor fg = ((cell.fg >> 24) == 0) ? m_defaultFg : QColor::fromRgba(cell.fg);
     if (cell.attrs & ATTR_INVERSE) std::swap(fg, bg);
 
-    painter.fillRect(x, y, m_cellWidth, m_cellHeight, bg);
+    // Skip filling cells that match the default background - the paintEvent
+    // base fill already covers them, and re-filling would double the alpha
+    // when the background is semi-transparent.
+    if (bg != m_defaultBg)
+        painter.fillRect(x, y, m_cellWidth, m_cellHeight, bg);
 
     if (cell.ch != 0 && cell.ch != ' ') {
         if (cell.attrs & (ATTR_BOLD | ATTR_ITALIC | ATTR_UNDERLINE)) {

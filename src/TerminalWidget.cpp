@@ -14,6 +14,9 @@ TerminalWidget::TerminalWidget(const brain::Config& config, QWidget* parent)
       m_pty()
 {
     setFocusPolicy(Qt::StrongFocus);
+    if (config.opacityPercent() < 100) {
+        setAttribute(Qt::WA_TranslucentBackground);
+    }
 
     setupRenderer();
     setupPTY();
@@ -108,6 +111,16 @@ void TerminalWidget::setupRenderer() {
     // Load theme from config
     m_renderer->loadTheme(m_config.themePath());
     m_renderer->setCursorStyle(m_config.cursorStyle());
+
+    // Bake window opacity into the default background alpha (Hyprland/Wayland
+    // composites it). 100 = opaque.
+    {
+        int op = m_config.opacityPercent();
+        if (op < 0) op = 0; if (op > 100) op = 100;
+        QColor bg = m_renderer->defaultBg();
+        bg.setAlpha(op * 255 / 100);
+        m_renderer->setDefaultBg(bg);
+    }
 }
 
 // ------------------------------------------------------------
@@ -117,6 +130,12 @@ void TerminalWidget::paintEvent(QPaintEvent*) {
     QPainter painter(this);
 
     if (m_renderer) {
+        // Base fill establishes the (optionally semi-transparent) background.
+        // CompositionMode_Source REPLACES pixels, so the transparent alpha
+        // reaches the compositor and frames don't accumulate opacity.
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+        painter.fillRect(rect(), m_renderer->defaultBg());
+        painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
         m_renderer->render(painter, m_terminal.grid(), m_terminal.cursorVisible());
     }
 }
