@@ -17,28 +17,32 @@ points, ordered by how much shared code each one touches.
    2.3.0 toolchain supports (kp, len, sbAppend, file I/O, sockets, …)
    runs unmodified. The terminal is just the host.
 
-## Tier 1 — small Windows-only hook (this is what's PoC-ready)
+## Tier 1 — shell-pick hook (LIVE on Windows + Linux)
 
 3. **Config / shell-pick override via a Krypton script.** Convention:
-   `%APPDATA%\brain-terminal\setup.ks` (or `~/.config/brain-terminal/setup.ks`
-   on Linux). When `PTYPlatform::createPTY` resolves a shell, it can read
-   the script's last-line output via `kr.exe <script>` and use that path.
-   That lets a user write a Krypton script that picks `bash` vs `pwsh` vs
-   `cmd` based on whether their git repo has a `.envrc`, the time of day,
-   etc. — programmatic config without us baking in an expression language.
+   `%APPDATA%\brain-terminal\setup.ks` (Windows) or
+   `$XDG_CONFIG_HOME/brain-terminal/setup.ks` (default
+   `~/.config/brain-terminal/setup.ks`, Linux). When `PTYPlatform::createPTY`
+   resolves a shell, it runs the script and uses its last non-comment stdout
+   line as the shell command. A user can pick `bash` vs `zsh` vs `pwsh` vs the
+   `kr` REPL based on the git repo, time of day, etc. — programmatic config
+   without us baking in an expression language.
 
-   See `krypton/setup_shell.ks` for the template.
+   See `krypton/setup_shell.ks` for the (cross-platform) template. Install it:
+   `mkdir -p ~/.config/brain-terminal && cp krypton/setup_shell.ks ~/.config/brain-terminal/setup.ks`.
 
-   **Code shape (Windows-only, in `platform/windows/PTYPlatform.cpp`):**
-   ```cpp
-   std::optional<std::string> kryptonResolvedShell() {
-       // GetEnvironmentVariableW("APPDATA") → %APPDATA%\brain-terminal\setup.ks
-       // CreateProcess("kr.exe <script>"), capture stdout, last line = path.
-       // Return std::nullopt if kr.exe isn't on PATH or script absent.
-   }
-   ```
-   Add to `resolveShell()` as the **first** lookup; cmd.exe stays the
-   fallback when Krypton tooling isn't installed. ~30 LOC.
+   **Windows** (`platform/windows/PTYPlatform.cpp`): `resolveShell()` runs
+   `kr.exe <script>` via `CreateProcess`, captures stdout. Explicit path wins,
+   then Krypton, then `cmd.exe`.
+
+   **Linux — LIVE** (`platform/linux/PTYPlatform.cpp`, `kryptonResolveShell()`):
+   `popen()`s `kr <script>` (falls back to `kcc -r <script>` if `kr` isn't
+   installed), takes the last non-`#`, non-empty line. Precedence: **Krypton
+   setup.ks (if present) → explicit config path → `$SHELL` → `/bin/bash`** —
+   the opt-in script decides when it exists. (Note: Windows currently honours
+   an explicit path *before* Krypton; the orderings can be aligned if we want
+   one rule — flag for W.) Verified: with `setup.ks` present, terk spawns
+   `terk → zsh`; without it, `terk → bash`.
 
 ## Tier 2 — shared, talk to Linux first
 
