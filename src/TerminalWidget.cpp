@@ -107,6 +107,7 @@ void TerminalWidget::setupRenderer() {
 
     // Load theme from config
     m_renderer->loadTheme(m_config.themePath());
+    m_renderer->setCursorStyle(m_config.cursorStyle());
 }
 
 // ------------------------------------------------------------
@@ -116,7 +117,7 @@ void TerminalWidget::paintEvent(QPaintEvent*) {
     QPainter painter(this);
 
     if (m_renderer) {
-        m_renderer->render(painter, m_terminal.grid());
+        m_renderer->render(painter, m_terminal.grid(), m_terminal.cursorVisible());
     }
 }
 
