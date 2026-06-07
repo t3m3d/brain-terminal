@@ -6,7 +6,7 @@ namespace kterm::ui {
 TerminalWindow::TerminalWindow(const kterm::Config& config)
     : m_config(config)
 {
-    setWindowTitle("terk");
+    setWindowTitle("brain");
 
     // Pass config into TerminalWidget
     setCentralWidget(new TerminalWidget(m_config, this));

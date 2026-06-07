@@ -91,6 +91,13 @@ PTYHandles PTYPlatform::createPTY(const std::string& shellPath, int cols, int ro
         return handles;
 
     if (childPid == 0) {
+        // Drop into the user's home dir so brain launched from anywhere
+        // (Files manager, desktop launcher, etc.) starts at ~. Silently
+        // fall through if HOME isn't set — exec still runs in the
+        // launcher's CWD in that case.
+        if (const char* home = getenv("HOME")) {
+            (void)chdir(home);
+        }
         // execlp: PATH search, so a bare "kr"/"zsh" from setup.ks works too.
         execlp(shell.c_str(), shell.c_str(), nullptr);
         _exit(1);

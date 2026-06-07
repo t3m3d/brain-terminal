@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(terk LANGUAGES CXX)
+project(brain LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -33,10 +33,10 @@ file(GLOB_RECURSE HEADERS
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
 # Executable
-qt_add_executable(terk ${SOURCES} ${HEADERS})
+qt_add_executable(brain ${SOURCES} ${HEADERS})
 
 # Include directories (modern style)
-target_include_directories(terk PRIVATE
+target_include_directories(brain PRIVATE
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/include/collect
     ${PROJECT_SOURCE_DIR}/include/render
@@ -46,7 +46,7 @@ target_include_directories(terk PRIVATE
 )
 
 # Link Qt6
-target_link_libraries(terk PRIVATE
+target_link_libraries(brain PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
@@ -58,48 +58,49 @@ target_link_libraries(terk PRIVATE
 # from the child shell renders Unicode correctly without per-call IAT
 # thunking (see platform/windows/brain-terminal.manifest).
 if (WIN32)
-    target_link_libraries(terk PRIVATE
+    target_link_libraries(brain PRIVATE
         Ws2_32
         Iphlpapi
         Kernel32
         User32
     )
 
-    if (MSVC)
-        # MSVC: a small .rc file embeds the manifest as a Win32 resource.
-        # CMake compiles .rc files via rc.exe automatically.
-        set(_brain_manifest_rc "${CMAKE_CURRENT_BINARY_DIR}/brain-terminal.rc")
-        file(WRITE "${_brain_manifest_rc}"
-            "1 24 \"${PROJECT_SOURCE_DIR}/platform/windows/brain-terminal.manifest\"\n")
-        target_sources(terk PRIVATE "${_brain_manifest_rc}")
-    else()
-        # MinGW / clang-on-Windows: windres compiles the .rc.
-        target_sources(terk PRIVATE
-            "${PROJECT_SOURCE_DIR}/platform/windows/brain-terminal.manifest")
-        set_source_files_properties(
-            "${PROJECT_SOURCE_DIR}/platform/windows/brain-terminal.manifest"
-            PROPERTIES LANGUAGE RC)
-    endif()
+    # Embed the manifest as Win32 resource id 1 type 24 (RT_MANIFEST). Both
+    # rc.exe (MSVC) and windres (MinGW) accept the same .rc syntax; we
+    # generate one .rc that forwards-references the .manifest and let the
+    # active toolchain handle it. windres pukes when handed XML directly,
+    # which is why the MinGW path used to fail.
+    set(_brain_manifest_rc "${CMAKE_CURRENT_BINARY_DIR}/brain-terminal.rc")
+    # Use backslashes in the .rc — windres treats forward slashes as the
+    # start of an option in some configurations. file(TO_NATIVE_PATH) gives
+    # us OS-correct separators on each platform.
+    file(TO_NATIVE_PATH
+         "${PROJECT_SOURCE_DIR}/platform/windows/brain-terminal.manifest"
+         _brain_manifest_native)
+    string(REPLACE "\\" "\\\\" _brain_manifest_escaped "${_brain_manifest_native}")
+    file(WRITE "${_brain_manifest_rc}"
+         "1 24 \"${_brain_manifest_escaped}\"\n")
+    target_sources(brain PRIVATE "${_brain_manifest_rc}")
 endif()
 
 if (UNIX AND NOT APPLE)
-    target_link_libraries(terk PRIVATE util)
+    target_link_libraries(brain PRIVATE util)
 endif()
 
 # config + themes
 install(FILES
-    resources/config/terk.conf
-    DESTINATION share/terk
+    resources/config/brain.conf
+    DESTINATION share/brain
 )
 
 install(DIRECTORY
     resources/themes
-    DESTINATION share/terk
+    DESTINATION share/brain
 )
 
 # ── Tests (ctest) ──────────────────────────────────────────────────────
 # Pure-logic unit tests; no Qt needed. Also the cross-validation oracle for
-# the Krypton parser (krypton/linux/terk_ansi.k) — same event format.
+# the Krypton parser (krypton/linux/brain_ansi.k) — same event format.
 # Run with:  cmake --build build-linux --target test_ansi && (cd build-linux && ctest)
 option(BUILD_TESTING "Build the tests" ON)
 if (BUILD_TESTING)

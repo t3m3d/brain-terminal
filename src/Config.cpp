@@ -27,29 +27,29 @@ static std::string findConfigPath(const std::string& overridePath) {
         if (f.good()) return overridePath;
     }
 
-    // User config (~/.config/terk/terk.conf)
+    // User config (~/.config/brain/brain.conf)
 #ifndef _WIN32
     if (const char* home = getenv("HOME")) {
-        std::string userPath = std::string(home) + "/.config/terk/terk.conf";
+        std::string userPath = std::string(home) + "/.config/brain/brain.conf";
         std::ifstream f(userPath);
         if (f.good()) return userPath;
     }
 #else
     if (const char* appdata = getenv("APPDATA")) {
-        std::string userPath = std::string(appdata) + "\\terk\\terk.conf";
+        std::string userPath = std::string(appdata) + "\\brain\\brain.conf";
         std::ifstream f(userPath);
         if (f.good()) return userPath;
     }
 #endif
 
-    // Local config (./terk.conf)
+    // Local config (./brain.conf)
     {
-        std::ifstream f("terk.conf");
-        if (f.good()) return "terk.conf";
+        std::ifstream f("brain.conf");
+        if (f.good()) return "brain.conf";
     }
 
     // Built-in default config
-    return "resources/config/terk.conf";
+    return "resources/config/brain.conf";
 }
 
 // ------------------------------------------------------------

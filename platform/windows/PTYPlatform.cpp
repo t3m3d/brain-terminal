@@ -36,6 +36,28 @@
 #define NOMINMAX
 #include <windows.h>
 
+// MinGW's bundled mingw-w64 headers historically lag the Windows 10 SDK
+// on ConPTY. Even with _WIN32_WINNT pinned to 0x0A00 the prototypes for
+// CreatePseudoConsole / ResizePseudoConsole / ClosePseudoConsole and
+// the HPCON typedef + PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE_HANDLE id
+// may not land. Forward-declare them by hand; the symbols live in
+// kernel32.dll (already linked) so the link step finds them at load
+// time regardless. MSVC ignores these (its <consoleapi.h> wins via
+// the include order above).
+#ifndef HPCON
+typedef VOID* HPCON;
+#endif
+#ifndef PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE_HANDLE
+#define PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE_HANDLE \
+        ProcThreadAttributeValue(22, FALSE, TRUE, FALSE)
+#endif
+extern "C" {
+    HRESULT WINAPI CreatePseudoConsole(COORD size, HANDLE hInput, HANDLE hOutput,
+                                       DWORD dwFlags, HPCON* phPC);
+    HRESULT WINAPI ResizePseudoConsole(HPCON hPC, COORD size);
+    VOID    WINAPI ClosePseudoConsole(HPCON hPC);
+}
+
 #include <atomic>
 #include <cstring>
 #include <mutex>
@@ -237,6 +259,17 @@ PTYHandles PTYPlatform::createPTY(const std::string& shellPath, int cols, int ro
     std::vector<wchar_t> cmdBuf(cmdLine.begin(), cmdLine.end());
     cmdBuf.push_back(L'\0');
 
+    // Launch the child in the user's home directory (USERPROFILE on
+    // Windows) so opening brain.exe from anywhere — Start menu, desktop
+    // shortcut, double-click — drops the user at `~` instead of
+    // wherever the .exe was launched from. Fall back to the launcher's
+    // CWD if USERPROFILE isn't set (unusual).
+    wchar_t homeW[MAX_PATH] = {0};
+    LPCWSTR lpCurrentDir = nullptr;
+    if (GetEnvironmentVariableW(L"USERPROFILE", homeW, MAX_PATH) > 0) {
+        lpCurrentDir = homeW;
+    }
+
     PROCESS_INFORMATION pi{};
     BOOL ok = CreateProcessW(
         nullptr,
@@ -244,7 +277,7 @@ PTYHandles PTYPlatform::createPTY(const std::string& shellPath, int cols, int ro
         nullptr, nullptr,
         FALSE,
         EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
-        nullptr, nullptr,
+        nullptr, lpCurrentDir,
         &si.StartupInfo,
         &pi);
 

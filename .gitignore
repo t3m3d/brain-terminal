@@ -4,6 +4,7 @@ kterm-native
 kterm.app/
 brain.app/
 build-linux/
+build-windows/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake

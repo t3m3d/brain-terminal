@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# build_linux.sh — build terk on Linux (Arch / Debian / Ubuntu / WSL2).
+# build_linux.sh — build brain on Linux (Arch / Debian / Ubuntu / WSL2).
 #
-# terk is a Qt6 / C++20 terminal app. Its CMakeLists.txt is already
+# brain is a Qt6 / C++20 terminal app. Its CMakeLists.txt is already
 # cross-platform (handles UNIX-not-APPLE via the libutil link); this
 # script just standardises the cmake invocation and the post-build
 # verify.
 #
 # Usage:
 #   ./build_linux.sh              # configure + build into ./build-linux
-#   ./build_linux.sh --run        # ... then launch ./build-linux/terk
+#   ./build_linux.sh --run        # ... then launch ./build-linux/brain
 #   ./build_linux.sh --test       # ... then build + run the ctest suite
 #   ./build_linux.sh --clean      # wipe build-linux first
 #
@@ -75,13 +75,13 @@ cmake -DCMAKE_BUILD_TYPE=Release "$SCRIPT_DIR"
 echo "build_linux.sh: building (-j$(nproc 2>/dev/null || echo 2))..."
 cmake --build . -- -j"$(nproc 2>/dev/null || echo 2)"
 
-if [[ ! -x "$BUILD_DIR/terk" ]]; then
-    echo "build_linux.sh: build succeeded but $BUILD_DIR/terk not found" >&2
+if [[ ! -x "$BUILD_DIR/brain" ]]; then
+    echo "build_linux.sh: build succeeded but $BUILD_DIR/brain not found" >&2
     exit 1
 fi
 
-size=$(stat -c '%s' "$BUILD_DIR/terk" 2>/dev/null || wc -c <"$BUILD_DIR/terk")
-echo "build_linux.sh: built $BUILD_DIR/terk ($size bytes)"
+size=$(stat -c '%s' "$BUILD_DIR/brain" 2>/dev/null || wc -c <"$BUILD_DIR/brain")
+echo "build_linux.sh: built $BUILD_DIR/brain ($size bytes)"
 
 if [[ $TEST -eq 1 ]]; then
     echo "build_linux.sh: running tests (ctest)..."
@@ -90,6 +90,6 @@ if [[ $TEST -eq 1 ]]; then
 fi
 
 if [[ $RUN -eq 1 ]]; then
-    echo "build_linux.sh: launching terk..."
-    exec "$BUILD_DIR/terk"
+    echo "build_linux.sh: launching brain..."
+    exec "$BUILD_DIR/brain"
 fi
