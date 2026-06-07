@@ -2,6 +2,7 @@
 #include <QPainter>
 #include <QKeyEvent>
 #include <QFont>
+#include <QColor>
 #include <QFontMetrics>
 
 namespace brain::ui {
@@ -112,6 +113,20 @@ void TerminalWidget::setupRenderer() {
     m_renderer->loadTheme(m_config.themePath());
     m_renderer->setCursorStyle(m_config.cursorStyle());
 
+    // Config colours override the theme (0 = unset). Set BEFORE opacity below
+    // so the alpha applies to the chosen background.
+    if (m_config.foreground())  m_renderer->setDefaultFg(QColor::fromRgba(m_config.foreground()));
+    if (m_config.background())  m_renderer->setDefaultBg(QColor::fromRgba(m_config.background()));
+    if (m_config.cursorColor()) m_renderer->setCursorColor(QColor::fromRgba(m_config.cursorColor()));
+    if (m_config.selectionBg() || m_config.selectionFg()) {
+        m_renderer->setSelectionColors(
+            m_config.selectionBg() ? QColor::fromRgba(m_config.selectionBg()) : QColor(0x44,0x44,0x66),
+            m_config.selectionFg() ? QColor::fromRgba(m_config.selectionFg()) : QColor(0xFF,0xFF,0xFF));
+    }
+    for (int i = 0; i < 16; ++i)
+        if (m_config.paletteColor(i)) m_terminal.setPaletteColor(i, m_config.paletteColor(i));
+    m_renderer->setPadding(m_config.paddingX(), m_config.paddingY());
+
     // Bake window opacity into the default background alpha (Hyprland/Wayland
     // composites it). 100 = opaque.
     {
@@ -160,8 +175,10 @@ void TerminalWidget::keyPressEvent(QKeyEvent* e) {
 // Resize terminal + renderer
 // ------------------------------------------------------------
 void TerminalWidget::resizeEvent(QResizeEvent*) {
-    int cols = width() / m_cellWidth;
-    int rows = height() / m_cellHeight;
+    int cols = (width()  - 2 * m_config.paddingX()) / m_cellWidth;
+    int rows = (height() - 2 * m_config.paddingY()) / m_cellHeight;
+    if (cols < 1) cols = 1;
+    if (rows < 1) rows = 1;
 
     m_terminal.resize(cols, rows);
 

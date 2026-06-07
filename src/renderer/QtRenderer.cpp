@@ -52,7 +52,7 @@ void QtRenderer::render(QPainter& painter, const Grid& grid, bool cursorVisible)
     if (cursorVisible) {
         int cr = grid.cursorRow(), cc = grid.cursorCol();
         if (cr >= 0 && cr < (int)rows.size() && cc >= 0 && cc < (int)rows[cr].size()) {
-            int cx = cc * m_cellWidth, cy = cr * m_cellHeight;
+            int cx = m_padX + cc * m_cellWidth, cy = m_padY + cr * m_cellHeight;
             QColor cur = m_cursorColorSet ? m_cursorColor : m_defaultFg;
             if (m_cursorStyle == "bar") {
                 painter.fillRect(cx, cy, 2, m_cellHeight, cur);
@@ -75,8 +75,8 @@ void QtRenderer::render(QPainter& painter, const Grid& grid, bool cursorVisible)
 }
 
 void QtRenderer::drawCell(QPainter& painter, int row, int col, const Cell& cell) {
-    int x = col * m_cellWidth;
-    int y = row * m_cellHeight;
+    int x = m_padX + col * m_cellWidth;
+    int y = m_padY + row * m_cellHeight;
 
     // cell.fg/bg are 0xAARRGGBB; alpha 0 means "use the terminal default".
     QColor bg = ((cell.bg >> 24) == 0) ? m_defaultBg : QColor::fromRgba(cell.bg);

@@ -32,6 +32,7 @@ public:
 
     // Cell size in pixels, so CSI 14t (report size in pixels) can be answered.
     void setCellPixels(int w, int h) { m_cellPxW = w; m_cellPxH = h; }
+    void setPaletteColor(int idx, uint32_t argb) { m_grid.setPaletteColor(idx, argb); }
 
     // Terminal modes (DEC private) for the frontend.
     bool bracketedPaste() const { return m_bracketedPaste; }
