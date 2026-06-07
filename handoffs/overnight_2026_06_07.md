@@ -97,6 +97,31 @@ cp ../resources resources -r      # if themes changed
 If brain.exe is locked (`Permission denied` link error) — it's still
 running. `taskkill /F /IM brain.exe`.
 
+## Post-merge update
+
+While I was working L pushed two big chains in parallel:
+
+- `fae310a` / `ec3e1c9` / `6a1b579` / `74203ed` / `7a05738` — colour
+  config (fg/bg/cursor/selection + 16 palette), padding, background
+  opacity for Wayland/Hyprland, attribute rendering, CHA/VPA absolute
+  cursor positioning, CSI 14t/18t window-size reply.
+- `c48aa96` — parallel impl of selection + paste + scrollback + window
+  title + font-size keys + primary selection.
+
+c48aa96 overlapped heavily with mine. Merge strategy: kept mine
+wholesale (more complete — adds find, tabs, altscreen, DECSC/RC,
+DECSTBM, OSC 8, themes, etc.) then cherry-picked the two unique
+features from L's commit: live font-size zoom and primary-selection
+paste. Both are now in `710d6ac`.
+
+The remote has moved from `t3m3d/terk.git` to `t3m3d/brain-terminal.git`
+per the push hint — git push works via the old URL redirect but worth
+updating when you get a moment:
+
+```
+git remote set-url origin https://github.com/t3m3d/brain-terminal.git
+```
+
 ## Files staged in build-windows/
 
 - `brain.exe`
