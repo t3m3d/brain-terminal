@@ -1,35 +1,12 @@
-// brain_ansi.k — ANSI / VT escape-sequence parser, in Krypton.
-//
-// Faithful port of brain-terminal/src/parser/AnsiParser.cpp. Pure logic:
-// no syscalls, no GUI. This is the first piece of the Linux Krypton brain —
-// the terminal core that turns a raw PTY byte stream into a list of typed
-// events (text runs, cursor moves, clears, SGR colour/attrs, modes, OSC).
-//
-// ansiParse(input) -> newline-separated event log, one event per line:
-//   TEXT <text>            printable run (control bytes shown \n \r \t \e)
-//   CURSOR_UP|DOWN|FWD|BACK <n>
-//   SET_CURSOR <row> <col>
-//   CLEAR_SCREEN <mode>    0=->end 1=start-> 2/3=all
-//   CLEAR_LINE <mode>
-//   SGR <params>           ;-separated SGR list (colours + attrs), "" -> 0
-//   SET_MODE|RESET_MODE <n> <priv>   priv=1 for DEC private (ESC[?..)
-//   OSC <payload>          shell-integration etc.
-//   UNKNOWN <final>
-//
-// Note: v1 assumes complete sequences within one input chunk. Incremental
-// buffering across feeds (split escapes) is a follow-up.
-
-// ── small char helpers ────────────────────────────────────────────────
+// brain_ansi.k — ANSI / VT escape-sequence parser in Krypton (port of src/parser/AnsiParser.cpp).
 
 func isAlphaCh(c) {
     let n = charCode(c)
-    if n >= 65 && n <= 90 { emit "1" }    // A-Z (CSI final bytes)
-    if n >= 97 && n <= 122 { emit "1" }   // a-z
+    if n >= 65 && n <= 90 { emit "1" }
+    if n >= 97 && n <= 122 { emit "1" }
     emit "0"
 }
 
-// nth ';'-delimited field of s, or "" if absent. Hand-rolled because the
-// native splitBy/list path is unreliable on Linux (LINUX_RELEASE_TODO).
 func nthField(s, sep, idx) {
     let cur = 0
     let start = 0
@@ -47,16 +24,14 @@ func nthField(s, sep, idx) {
     emit ""
 }
 
-// CSI integer param idx with default def (matches the C++ p(i,def) lambda).
 func csiNum(params, idx, def) {
     let f = nthField(params, ";", idx)
     if f == "" { emit toStr(def) }
     emit toStr(toInt(f))
 }
 
-// escape control bytes in a text run so the event log stays one-line.
 func escText(s) {
-    let bsl = fromCharCode(92)   // backslash, avoids string-literal escape ambiguity
+    let bsl = fromCharCode(92)
     let sb = sbNew()
     let i = 0
     while i < len(s) {
@@ -72,13 +47,10 @@ func escText(s) {
     emit sbToString(sb)
 }
 
-// ── CSI dispatch ──────────────────────────────────────────────────────
-// seq is the full "ESC [ ... <final>" string. Returns one event line.
-
 func parseCSI(seq) {
     let n = len(seq)
     let final = seq[n - 1]
-    let params = substring(seq, 2, n - 1)   // between '[' and the final byte
+    let params = substring(seq, 2, n - 1)
     let priv = "0"
     if len(params) > 0 {
         let c0 = params[0]
@@ -108,8 +80,6 @@ func parseCSI(seq) {
     emit "UNKNOWN " + final
 }
 
-// ── main parse loop ───────────────────────────────────────────────────
-
 func ansiParse(input) {
     let ESC = fromCharCode(27)
     let BEL = fromCharCode(7)
@@ -124,7 +94,6 @@ func ansiParse(input) {
             pos = pos + 1
             continue
         }
-        // flush pending text run [textStart, pos)
         if pos > textStart {
             ev = sbAppend(ev, "TEXT " + escText(substring(input, textStart, pos)) + nl)
         }
@@ -132,7 +101,6 @@ func ansiParse(input) {
         let c1 = input[pos + 1]
 
         if c1 == "]" {
-            // OSC: ESC ] <payload> (BEL | ESC '\')
             let i = pos + 2
             let termLen = 0
             while i < n {
@@ -140,7 +108,7 @@ func ansiParse(input) {
                 if input[i] == ESC && i + 1 < n && input[i + 1] == BSL { termLen = 2  break }
                 i = i + 1
             }
-            if i >= n { textStart = pos  pos = n  continue }   // unterminated -> leftover
+            if i >= n { textStart = pos  pos = n  continue }
             ev = sbAppend(ev, "OSC " + escText(substring(input, pos + 2, i)) + nl)
             pos = i + termLen
             textStart = pos
@@ -148,17 +116,16 @@ func ansiParse(input) {
         }
 
         if c1 != "[" {
-            pos = pos + 2          // ESC <other> — skip
+            pos = pos + 2
             textStart = pos
             continue
         }
 
-        // CSI: scan to the final (alpha) byte
         let end = pos + 2
         while end < n && isAlphaCh(input[end]) == "0" {
             end = end + 1
         }
-        if end >= n { textStart = pos  pos = n  continue }      // unterminated CSI
+        if end >= n { textStart = pos  pos = n  continue }
         ev = sbAppend(ev, parseCSI(substring(input, pos, end + 1)) + nl)
         pos = end + 1
         textStart = pos
@@ -168,8 +135,6 @@ func ansiParse(input) {
     }
     emit sbToString(ev)
 }
-
-// ── self-test ─────────────────────────────────────────────────────────
 
 just run {
     let ESC = fromCharCode(27)

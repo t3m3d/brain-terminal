@@ -1,20 +1,8 @@
-// brain_prompt.k — a fast shell prompt, in Krypton, for Linux.
-//
-// Another "little Krypton here and there" brain built-in: a native prompt
-// generator (like starship/powerline, but Krypton + no deps). Shows
-// user@host, ~-shortened cwd, git branch + dirty flag, and an exit-status
-// coloured prompt glyph. Emits an OSC 133 prompt-start marker so it lights
-// up brain's command-block UI.
-//
-// Build + wire into your shell:
-//   kcc -o brain_prompt brain_prompt.k
-//   # bash:  PS1='$(brain_prompt $?)'
-//   # the $? is passed as arg 0 -> colours the glyph green/red.
+// brain_prompt.k — a fast shell prompt in Krypton (user@host, cwd, git, exit-status, OSC 133).
+//   kcc -o brain_prompt brain_prompt.k   then   PS1='$(brain_prompt $?)'
 
 func col(code) { emit fromCharCode(27) + "[" + code + "m" }
 
-// UTF-8 bytes for a BMP codepoint (so we can use nice glyphs without
-// relying on Krypton string-literal unicode).
 func utf8(cp) {
     if cp < 128 { emit fromCharCode(cp) }
     if cp < 2048 {
@@ -28,18 +16,17 @@ func utf8(cp) {
 
 just run {
     let RST = col("0")
-    let CY  = col("36;1")    // user@host
-    let BL  = col("34;1")    // cwd
-    let YL  = col("33;1")    // git branch
-    let RD  = col("31;1")    // dirty / error
-    let GR  = col("32;1")    // ok
+    let CY  = col("36;1")
+    let BL  = col("34;1")
+    let YL  = col("33;1")
+    let RD  = col("31;1")
+    let GR  = col("32;1")
 
-    let exitCode = arg("0")          // shell passes $? as arg 0 (when compiled)
+    let exitCode = arg("0")
 
     let user = trim(exec("whoami"))
     let host = trim(exec("cat /proc/sys/kernel/hostname"))
 
-    // cwd, with $HOME collapsed to ~
     let cwd = trim(exec("pwd"))
     let home = trim(exec("printf %s \"$HOME\""))
     if len(home) > 0 && len(cwd) >= len(home) {
@@ -48,7 +35,6 @@ just run {
         }
     }
 
-    // git branch + dirty
     let branch = trim(exec("git rev-parse --abbrev-ref HEAD 2>/dev/null"))
     let gitPart = ""
     if branch != "" {
@@ -58,14 +44,12 @@ just run {
         gitPart = " " + YL + "(" + branch + mark + ")" + RST
     }
 
-    // exit-status coloured glyph (heavy angle quote)
     let glyphCol = GR
     if exitCode != "" && exitCode != "0" { glyphCol = RD }
-    let glyph = glyphCol + utf8(10095) + RST    // U+276F  >
+    let glyph = glyphCol + utf8(10095) + RST
 
     let osc133 = fromCharCode(27) + "]133;A" + fromCharCode(27) + fromCharCode(92)
 
-    // single line: user@host  cwd  (branch*)  >
     kp(osc133 + CY + user + "@" + host + RST
        + " " + BL + cwd + RST
        + gitPart

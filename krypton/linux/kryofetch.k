@@ -1,17 +1,7 @@
-// kryofetch.k — neofetch-style system info, in Krypton, for Linux.
-//
-// A "little Krypton here and there": a brain built-in command, written in
-// pure Krypton (no C). Reads real Linux system info via exec()/proc and
-// renders a Krypton-themed ASCII logo with ANSI colour. Run: kcc -r kryofetch.k
-//
-// The pre-existing krypton/kryofetch is a STATIC Windows sample; this is the
-// working Linux version.
+// kryofetch.k — neofetch-style system info in Krypton for Linux (kcc -r kryofetch.k).
 
-// ── shell capture ─────────────────────────────────────────────────────
-// exec() captures stdout (shellRun streams it + returns an exit code).
 func cap(cmd) { emit trim(exec(cmd)) }
 
-// value after the first ':' on the first line of text containing key.
 func procVal(text, key) {
     let n = lineCount(text)
     let i = 0
@@ -27,7 +17,6 @@ func procVal(text, key) {
     emit ""
 }
 
-// first whitespace-separated token of s (e.g. "14117504 kB" -> "14117504").
 func firstTok(s) {
     let i = 0
     let n = len(s)
@@ -35,24 +24,21 @@ func firstTok(s) {
     emit substring(s, 0, i)
 }
 
-// integer division rendered as a 1-decimal GB string from a kB value.
 func kbToGb(kb) {
-    let tenths = (kb * 10) / 1048576    // kB -> GB*10
+    let tenths = (kb * 10) / 1048576
     let whole = tenths / 10
     let frac = tenths - whole * 10
     emit toStr(whole) + "." + toStr(frac)
 }
 
-// a [####....] usage bar, pct 0..100, given inner width.
 func bar(pct, width) {
     let fill = (pct * width) / 100
     if fill > width { fill = width }
-    let blk = fromCharCode(35)          // '#'
-    let dot = fromCharCode(46)          // '.'
+    let blk = fromCharCode(35)
+    let dot = fromCharCode(46)
     emit "[" + repeat(blk, fill) + repeat(dot, width - fill) + "]"
 }
 
-// ── ANSI colour ───────────────────────────────────────────────────────
 func col(code) { emit fromCharCode(27) + "[" + code + "m" }
 
 just run {
@@ -63,10 +49,8 @@ just run {
     let GRB = col("32;1")
     let WT  = col("37;1")
 
-    // ── gather facts ──────────────────────────────────────────────────
     let user = cap("whoami")
     let host = cap("cat /proc/sys/kernel/hostname")
-    // source os-release so PRETTY_NAME is fully resolved (no key, no quotes).
     let osName = cap(". /etc/os-release 2>/dev/null; printf %s \"$PRETTY_NAME\"")
     if osName == "" { osName = "Linux" }
     let kern = cap("uname -r")
@@ -93,7 +77,6 @@ just run {
     if shell == "" { shell = cap("printf %s \"$0\"") }
     let pkgs = cap("(pacman -Qq 2>/dev/null || dpkg -l 2>/dev/null | grep '^ii') | wc -l")
 
-    // ── info column ───────────────────────────────────────────────────
     let memLine = kbToGb(memUsedKb) + " / " + kbToGb(memTotKb) + " GB  "
                 + bar(memPct, 18) + "  " + toStr(memPct) + "%"
 
@@ -108,9 +91,7 @@ just run {
     info = info + GRB + "Pkgs:   " + RST + pkgs + fromCharCode(10)
     info = info + GRB + "Term:   " + RST + "brain" + fromCharCode(10)
 
-    // ── logo + info, side by side ─────────────────────────────────────
-    // A small Krypton crystal. Logo lines on the left, info on the right.
-    let B = fromCharCode(92)            // backslash, avoids escape ambiguity
+    let B = fromCharCode(92)
     let logo0 = CYB + "        /" + B + "        " + RST
     let logo1 = CYB + "       /  " + B + "       " + RST
     let logo2 = CY  + "      / /" + B + " " + B + "      " + RST
@@ -124,7 +105,6 @@ just run {
 
     let nl = fromCharCode(10)
     kp("")
-    // print logo and info rows in parallel (info is \n-delimited)
     let row = 0
     let logoLines = logo0 + nl + logo1 + nl + logo2 + nl + logo3 + nl + logo4 + nl
                   + logo5 + nl + logo6 + nl + logo7 + nl + logo8 + nl + logo9

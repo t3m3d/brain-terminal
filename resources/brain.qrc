@@ -1,9 +1,5 @@
 <!DOCTYPE RCC>
 <RCC version="1.0">
-  <!-- Embeds the app icon into the binary so QIcon(":/icons/brain.png")
-       resolves regardless of the working directory brain was launched from
-       (menu launcher, dock, a cd'd shell). The on-disk resources/icons/
-       copies remain for theme install + the Windows .rc. -->
   <qresource prefix="/icons">
     <file alias="brain.png">icons/brain-256.png</file>
   </qresource>

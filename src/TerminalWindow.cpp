@@ -16,18 +16,13 @@ namespace {
 
 bool envSet(const char* k) { const char* v = std::getenv(k); return v && *v; }
 
-// True when brain is running under a tiling window manager / compositor, where
-// you split the screen with the WM itself and stacked tabs just get in the way.
-// Stacking desktops (KDE, GNOME, XFCE, Cinnamon…) return false → tabs are on.
+// True under a tiling WM/compositor (where you split with the WM, not tabs).
 bool detectTilingWM() {
-    // Strong signals: a tiling compositor exports its own IPC socket.
-    if (envSet("HYPRLAND_INSTANCE_SIGNATURE")) return true;   // Hyprland
-    if (envSet("SWAYSOCK"))                    return true;   // sway
-    if (envSet("I3SOCK"))                      return true;   // i3
-    if (envSet("NIRI_SOCKET"))                 return true;   // niri
+    if (envSet("HYPRLAND_INSTANCE_SIGNATURE")) return true;
+    if (envSet("SWAYSOCK"))                    return true;
+    if (envSet("I3SOCK"))                      return true;
+    if (envSet("NIRI_SOCKET"))                 return true;
 
-    // Otherwise match the desktop name(s). XDG_CURRENT_DESKTOP is a
-    // colon-separated, case-insensitive list ("KDE", "Hyprland", "wlroots:river").
     static const char* const tiling[] = {
         "hyprland","sway","i3","river","niri","dwl","dwm","bspwm","awesome",
         "xmonad","qtile","herbstluftwm","spectrwm","leftwm","wmii","ratpoison",
@@ -50,7 +45,7 @@ bool detectTilingWM() {
     return false;
 }
 
-// config `tabs = auto|on|off`. auto → enabled unless a tiling WM is detected.
+// tabs = auto|on|off. auto → enabled unless a tiling WM is detected.
 bool resolveTabsEnabled(const brain::Config& cfg) {
     const std::string& m = cfg.tabsMode();
     if (m == "on"  || m == "true"  || m == "yes" || m == "always" || m == "enabled")  return true;
@@ -86,11 +81,8 @@ TerminalWindow::TerminalWindow(const brain::Config& config)
 
     newTab();
 
-    // Tabs: on for stacking desktops (KDE/GNOME/XFCE…), off for tiling WMs
-    // (Hyprland/sway/i3…) where the compositor handles splitting. `tabs` in
-    // brain.conf forces it either way. When off we simply don't register the
-    // tab keybindings — those keys fall through to the shell — and the lone
-    // tab's bar stays auto-hidden, so brain looks and behaves tab-free.
+    // Tabs on for stacking desktops, off for tiling WMs; when off the tab
+    // keybindings aren't registered and the lone tab's bar stays auto-hidden.
     if (resolveTabsEnabled(config)) {
         auto bind = [this](const QKeySequence& seq, void (TerminalWindow::*slot)()) {
             auto* sc = new QShortcut(seq, this);

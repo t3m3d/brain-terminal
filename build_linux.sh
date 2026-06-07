@@ -1,22 +1,15 @@
 #!/usr/bin/env bash
 # build_linux.sh — build brain on Linux (Arch / Debian / Ubuntu / WSL2).
 #
-# brain is a Qt6 / C++20 terminal app. Its CMakeLists.txt is already
-# cross-platform (handles UNIX-not-APPLE via the libutil link); this
-# script just standardises the cmake invocation and the post-build
-# verify.
-#
 # Usage:
-#   ./build_linux.sh              # configure + build into ./build-linux
-#   ./build_linux.sh --run        # ... then launch ./build-linux/brain
-#   ./build_linux.sh --test       # ... then build + run the ctest suite
-#   ./build_linux.sh --clean      # wipe build-linux first
-#   ./build_linux.sh --install-desktop   # install .desktop + hicolor icons
-#                                 # into ~/.local/share so the brain icon
-#                                 # shows in your bar / launcher / alt-tab
-#                                 # (needed on Wayland: Hyprland, sway)
+#   ./build_linux.sh                  configure + build into ./build-linux
+#   ./build_linux.sh --run            ... then launch ./build-linux/brain
+#   ./build_linux.sh --test           ... then build + run the ctest suite
+#   ./build_linux.sh --clean          wipe build-linux first
+#   ./build_linux.sh --install-desktop  install .desktop + hicolor icons into
+#                                     ~/.local/share (Wayland icon: Hyprland/sway)
 #
-# Prereqs: see BUILD_LINUX.md. Short version:
+# Prereqs:
 #   Arch:   sudo pacman -S --needed base-devel cmake qt6-base
 #   Debian: sudo apt install build-essential cmake qt6-base-dev libutil-dev
 
@@ -49,7 +42,6 @@ if [[ $CLEAN -eq 1 && -d "$BUILD_DIR" ]]; then
     rm -rf "$BUILD_DIR"
 fi
 
-# Sanity-check toolchain before cmake (better error message than cmake's).
 for tool in cmake make g++; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "build_linux.sh: missing required tool '$tool'" >&2
@@ -59,11 +51,6 @@ for tool in cmake make g++; do
     fi
 done
 
-# Qt6 path probing — cmake will give a clearer error if missing, but
-# surface it up front so users don't waste a minute on the configure step.
-# `cmake --find-package` is deprecated and unreliable (false negatives on
-# modern CMake/Qt). Probe with pkg-config, then fall back to looking for
-# Qt6Config.cmake in the usual lib dirs.
 if ! pkg-config --exists Qt6Core 2>/dev/null \
    && ! ls /usr/lib*/cmake/Qt6/Qt6Config.cmake /usr/lib/*/cmake/Qt6/Qt6Config.cmake >/dev/null 2>&1; then
     echo "build_linux.sh: Qt6 not found - install qt6-base." >&2
@@ -99,8 +86,6 @@ if [[ $INSTALL_DESKTOP -eq 1 ]]; then
     echo "build_linux.sh: installing desktop entry + hicolor icons (user)..."
     DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
     install -Dm644 "$SCRIPT_DIR/resources/brain.desktop" "$DATA/applications/brain.desktop"
-    # Point Exec at the actual built binary so launching from a menu works,
-    # without requiring brain on $PATH. app_id matching uses StartupWMClass.
     sed -i "s|^Exec=.*|Exec=$BUILD_DIR/brain|" "$DATA/applications/brain.desktop"
     for sz in 16 24 32 48 64 128 256; do
         src="$SCRIPT_DIR/resources/icons/hicolor/${sz}x${sz}/apps/brain.png"

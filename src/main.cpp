@@ -8,10 +8,8 @@
 #include "brain/Config.hpp"
 #include "brain/ui/TerminalWindow.hpp"
 
-// Locate the app icon. The icon is compiled into the binary via the .qrc
-// (resources/brain.qrc), so ":/icons/brain.png" always resolves no matter
-// where brain was launched from — that's the reliable source. The on-disk
-// candidates are a fallback for an installed icon theme / dev tree.
+// Icon is compiled in via resources/brain.qrc, so ":/icons/brain.png" resolves
+// from any CWD; the on-disk paths are an installed-theme / dev-tree fallback.
 static QIcon loadAppIcon() {
     QIcon embedded(":/icons/brain.png");
     if (!embedded.isNull()) return embedded;
@@ -34,12 +32,8 @@ int main(int argc, char** argv) {
     QApplication::setApplicationName("brain");
     QApplication::setApplicationDisplayName("brain");
 
-    // On Wayland (Hyprland/sway) the compositor and bars/launchers can't take a
-    // per-window QIcon directly — they map the window's app_id to a .desktop
-    // entry and read Icon= from it. Setting the desktop file name makes Qt
-    // advertise app_id "brain", matching resources/brain.desktop (installed to
-    // share/applications) → the brain icon shows in the bar / alt-tab / dock.
-    // On X11 this is harmless and the QIcon below drives the icon directly.
+    // Wayland app_id → brain.desktop → Icon=. Needed for the icon to show in
+    // bars/launchers on Wayland (a bare QIcon isn't enough); harmless on X11.
     QGuiApplication::setDesktopFileName("brain");
 
     QIcon icon = loadAppIcon();
