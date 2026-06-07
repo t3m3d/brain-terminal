@@ -78,7 +78,16 @@ if (WIN32)
          "${PROJECT_SOURCE_DIR}/platform/windows/brain-terminal.manifest"
          _brain_manifest_native)
     string(REPLACE "\\" "\\\\" _brain_manifest_escaped "${_brain_manifest_native}")
+    file(TO_NATIVE_PATH
+         "${PROJECT_SOURCE_DIR}/resources/icons/brain.ico"
+         _brain_icon_native)
+    string(REPLACE "\\" "\\\\" _brain_icon_escaped "${_brain_icon_native}")
+    # Manifest (1 24) + icon (IDI_ICON1 = id 1, type 14 ICON). Putting the
+    # app icon FIRST in the .rc makes Windows pick it as the .exe icon
+    # shown in Explorer / taskbar pinning / alt-tab. The .ico is multi-
+    # resolution (16..256) so no size is upscaled at runtime.
     file(WRITE "${_brain_manifest_rc}"
+         "IDI_ICON1 ICON \"${_brain_icon_escaped}\"\n"
          "1 24 \"${_brain_manifest_escaped}\"\n")
     target_sources(brain PRIVATE "${_brain_manifest_rc}")
 endif()
@@ -87,7 +96,7 @@ if (UNIX AND NOT APPLE)
     target_link_libraries(brain PRIVATE util)
 endif()
 
-# config + themes
+# config + themes + icons
 install(FILES
     resources/config/brain.conf
     DESTINATION share/brain
@@ -95,6 +104,7 @@ install(FILES
 
 install(DIRECTORY
     resources/themes
+    resources/icons
     DESTINATION share/brain
 )
 
