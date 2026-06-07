@@ -52,7 +52,11 @@ target_link_libraries(terk PRIVATE
     Qt6::Widgets
 )
 
-# Windows-specific libraries
+# Windows-specific libraries + UTF-8 manifest.
+#
+# The manifest flips the process ACP to 65001 so byte-pumped output
+# from the child shell renders Unicode correctly without per-call IAT
+# thunking (see platform/windows/brain-terminal.manifest).
 if (WIN32)
     target_link_libraries(terk PRIVATE
         Ws2_32
@@ -60,6 +64,22 @@ if (WIN32)
         Kernel32
         User32
     )
+
+    if (MSVC)
+        # MSVC: a small .rc file embeds the manifest as a Win32 resource.
+        # CMake compiles .rc files via rc.exe automatically.
+        set(_brain_manifest_rc "${CMAKE_CURRENT_BINARY_DIR}/brain-terminal.rc")
+        file(WRITE "${_brain_manifest_rc}"
+            "1 24 \"${PROJECT_SOURCE_DIR}/platform/windows/brain-terminal.manifest\"\n")
+        target_sources(terk PRIVATE "${_brain_manifest_rc}")
+    else()
+        # MinGW / clang-on-Windows: windres compiles the .rc.
+        target_sources(terk PRIVATE
+            "${PROJECT_SOURCE_DIR}/platform/windows/brain-terminal.manifest")
+        set_source_files_properties(
+            "${PROJECT_SOURCE_DIR}/platform/windows/brain-terminal.manifest"
+            PROPERTIES LANGUAGE RC)
+    endif()
 endif()
 
 if (UNIX AND NOT APPLE)
