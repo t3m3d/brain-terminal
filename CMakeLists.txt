@@ -96,3 +96,18 @@ install(DIRECTORY
     resources/themes
     DESTINATION share/terk
 )
+
+# ── Tests (ctest) ──────────────────────────────────────────────────────
+# Pure-logic unit tests; no Qt needed. Also the cross-validation oracle for
+# the Krypton parser (krypton/linux/terk_ansi.k) — same event format.
+# Run with:  cmake --build build-linux --target test_ansi && (cd build-linux && ctest)
+option(BUILD_TESTING "Build the tests" ON)
+if (BUILD_TESTING)
+    enable_testing()
+    add_executable(test_ansi
+        ${PROJECT_SOURCE_DIR}/tests/test_ansi.cpp
+        ${PROJECT_SOURCE_DIR}/src/parser/AnsiParser.cpp
+    )
+    target_include_directories(test_ansi PRIVATE ${PROJECT_SOURCE_DIR}/include)
+    add_test(NAME ansi_parser COMMAND test_ansi)
+endif()
