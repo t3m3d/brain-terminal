@@ -6,6 +6,26 @@ using namespace brain;
 
 namespace {
 
+// Parse a hex colour "#rrggbb" / "#aarrggbb" (also without '#') into
+// 0xAARRGGBB. 6-digit forms get an opaque alpha. Returns 0 (= unset) on junk.
+static uint32_t parseColor(const std::string& s) {
+    std::string h = s;
+    if (!h.empty() && h[0] == '#') h.erase(0, 1);
+    if (h.size() != 6 && h.size() != 8) return 0;
+    uint32_t v = 0;
+    for (char c : h) {
+        int d;
+        if      (c >= '0' && c <= '9') d = c - '0';
+        else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
+        else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
+        else return 0;
+        v = (v << 4) | static_cast<uint32_t>(d);
+    }
+    if (h.size() == 6) v |= 0xFF000000u;   // opaque
+    if (v == 0) v = 0xFF000000u;           // pure black -> keep non-zero (alpha)
+    return v;
+}
+
 // Per-platform sensible defaults.
 //
 // Font: pick a real monospace family BY NAME so Qt's font matcher doesn't
@@ -132,6 +152,19 @@ Config Config::load(const std::string& path) {
         else if (key == "opacity")         c.m_opacityPercent  = to_int(val, c.m_opacityPercent);
         else if (key == "cursor_style")    c.m_cursorStyle     = val;
         else if (key == "startup_command") c.m_startupCommand  = val;
+        else if (key == "foreground")      c.m_foreground      = parseColor(val);
+        else if (key == "background")      c.m_background      = parseColor(val);
+        else if (key == "cursor_color")    c.m_cursorColor     = parseColor(val);
+        else if (key == "selection_background") c.m_selectionBg = parseColor(val);
+        else if (key == "selection_foreground") c.m_selectionFg = parseColor(val);
+        else if (key == "padding_x")       c.m_paddingX        = to_int(val, c.m_paddingX);
+        else if (key == "padding_y")       c.m_paddingY        = to_int(val, c.m_paddingY);
+        else if (key.rfind("palette", 0) == 0 || key.rfind("color", 0) == 0) {
+            // palette0..palette15 (or color0..color15) -> 16-colour ANSI palette
+            std::string num = key.substr(key[0] == 'p' ? 7 : 5);
+            int idx = to_int(num, -1);
+            if (idx >= 0 && idx < 16) c.m_palette[idx] = parseColor(val);
+        }
     }
 
     return c;

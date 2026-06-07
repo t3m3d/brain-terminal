@@ -5,6 +5,7 @@
 #include <QWheelEvent>
 #include <QFocusEvent>
 #include <QFont>
+#include <QColor>
 #include <QFontMetrics>
 #include <QTimer>
 #include <QApplication>
@@ -30,12 +31,19 @@ TerminalWidget::TerminalWidget(const brain::Config& config, QWidget* parent)
       m_pty()
 {
     setFocusPolicy(Qt::StrongFocus);
-    setMouseTracking(false);   // moveEvents only while a button is held
-    setAttribute(Qt::WA_OpaquePaintEvent, true);
+    setMouseTracking(false);
 
-    // Honour user-configured scrollback before any PTY output arrives.
-    // 0 disables scrollback entirely (matches "set --no-scrollback" UX).
-    if (m_config.scrollback() >= 0) m_terminal.setScrollback(m_config.scrollback());
+    // Opaque paint by default (fast path). When the user wants
+    // transparency, switch on the translucent flag — the renderer's bg
+    // fill won't double-alpha because cells skip filling when bg matches
+    // the default.
+    if (config.opacityPercent() < 100)
+        setAttribute(Qt::WA_TranslucentBackground);
+    else
+        setAttribute(Qt::WA_OpaquePaintEvent, true);
+
+    if (m_config.scrollback() >= 0)
+        m_terminal.setScrollback(m_config.scrollback());
 
     setupRenderer();
     setupPTY();
@@ -44,6 +52,12 @@ TerminalWidget::TerminalWidget(const brain::Config& config, QWidget* parent)
     m_terminal.setRenderCallback([this]() {
         update();
     });
+
+    // Terminal replies to the shell over the PTY (e.g. CSI 18t/14t size queries).
+    m_terminal.setResponseCallback([this](const std::string& s) {
+        m_pty.writeInput(s);
+    });
+    m_terminal.setCellPixels(m_cellWidth, m_cellHeight);
 }
 
 void TerminalWidget::hookTerminalSignals() {
@@ -134,12 +148,30 @@ void TerminalWidget::setupRenderer() {
 
     m_renderer = new renderer::QtRenderer(font, m_cellWidth, m_cellHeight);
     m_renderer->loadTheme(m_config.themePath());
+    m_renderer->setCursorStyle(m_config.cursorStyle());
 
-    // cursor_style ∈ {block, underline, bar}. Default block.
-    const std::string& cs = m_config.cursorStyle();
-    if      (cs == "underline") m_renderer->setCursorStyle(renderer::QtRenderer::CursorUnderline);
-    else if (cs == "bar")       m_renderer->setCursorStyle(renderer::QtRenderer::CursorBar);
-    else                        m_renderer->setCursorStyle(renderer::QtRenderer::CursorBlock);
+    // Config colour overrides (0 = unset).
+    if (m_config.foreground())  m_renderer->setDefaultFg(QColor::fromRgba(m_config.foreground()));
+    if (m_config.background())  m_renderer->setDefaultBg(QColor::fromRgba(m_config.background()));
+    if (m_config.cursorColor()) m_renderer->setCursorColor(QColor::fromRgba(m_config.cursorColor()));
+    if (m_config.selectionBg() || m_config.selectionFg()) {
+        m_renderer->setSelectionColors(
+            m_config.selectionBg() ? QColor::fromRgba(m_config.selectionBg()) : QColor(0x44,0x44,0x66),
+            m_config.selectionFg() ? QColor::fromRgba(m_config.selectionFg()) : QColor(0xFF,0xFF,0xFF));
+    }
+    for (int i = 0; i < 16; ++i)
+        if (m_config.paletteColor(i)) m_terminal.setPaletteColor(i, m_config.paletteColor(i));
+    m_renderer->setPadding(m_config.paddingX(), m_config.paddingY());
+
+    // Bake window opacity into the default background alpha (compositors —
+    // Hyprland/Wayland/DWM — composite this). 100 = opaque.
+    {
+        int op = m_config.opacityPercent();
+        if (op < 0) op = 0; if (op > 100) op = 100;
+        QColor bg = m_renderer->defaultBg();
+        bg.setAlpha(op * 255 / 100);
+        m_renderer->setDefaultBg(bg);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -149,6 +181,13 @@ void TerminalWidget::paintEvent(QPaintEvent*) {
     QPainter painter(this);
 
     if (m_renderer) {
+        // Base fill establishes the (optionally semi-transparent) background.
+        // CompositionMode_Source REPLACES pixels, so transparent alpha reaches
+        // the compositor and successive frames don't accumulate opacity.
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+        painter.fillRect(rect(), m_renderer->defaultBg());
+        painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+
         m_renderer->renderWithView(
             painter,
             m_terminal.grid(),
@@ -199,8 +238,8 @@ void TerminalWidget::keyPressEvent(QKeyEvent* e) {
 // Resize
 // ---------------------------------------------------------------------------
 void TerminalWidget::resizeEvent(QResizeEvent*) {
-    int cols = width() / m_cellWidth;
-    int rows = height() / m_cellHeight;
+    int cols = (width()  - 2 * m_config.paddingX()) / m_cellWidth;
+    int rows = (height() - 2 * m_config.paddingY()) / m_cellHeight;
     if (cols < 1) cols = 1;
     if (rows < 1) rows = 1;
 

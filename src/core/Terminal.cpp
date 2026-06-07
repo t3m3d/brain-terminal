@@ -145,6 +145,14 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
             break;
         }
 
+        case EscapeType::CursorColumn:   // CHA: absolute column (1-based)
+            m_grid.setCursor(m_grid.cursorRow(), std::max(0, seq.value - 1));
+            break;
+
+        case EscapeType::CursorRow:      // VPA: absolute row (1-based)
+            m_grid.setCursor(std::max(0, seq.value - 1), m_grid.cursorCol());
+            break;
+
         case EscapeType::ClearScreen:
             // ESC[J: 0/none = cursor->end, 1 = start->cursor, 2/3 = all.
             if (seq.value >= 2) {
@@ -265,6 +273,21 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
                         break;
                 }
             }
+            break;
+        }
+
+        case EscapeType::WindowOp: {
+            // Reply to window-size queries so prompts (oh-my-posh/starship) that
+            // size their panels by querying the terminal lay out correctly.
+            if (!m_responseCallback) break;
+            int cols = m_grid.cols();
+            int rows = m_grid.rowCount();
+            if (seq.value == 18)        // report text area size in characters
+                m_responseCallback("\x1b[8;" + std::to_string(rows) + ";" +
+                                   std::to_string(cols) + "t");
+            else if (seq.value == 14)   // report text area size in pixels
+                m_responseCallback("\x1b[4;" + std::to_string(rows * m_cellPxH) + ";" +
+                                   std::to_string(cols * m_cellPxW) + "t");
             break;
         }
 

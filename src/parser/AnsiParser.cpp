@@ -171,6 +171,12 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
             esc.col = p(1,1);
             break;
 
+        // Absolute column (CHA) / row (VPA). Prompts use ESC[1G to snap the
+        // cursor back to column 1 before drawing side panels; ignoring it
+        // left every following ESC[<n>C offset to the right.
+        case 'G': esc.type = EscapeType::CursorColumn; esc.value = p(0,1); break;
+        case 'd': esc.type = EscapeType::CursorRow;    esc.value = p(0,1); break;
+
         // Clear screen / line. Carry the mode in .value:
         //   J: 0/none = cursor->end of screen, 1 = start->cursor, 2/3 = all.
         //   K: 0/none = cursor->end of line,   1 = start->cursor, 2   = whole line.
@@ -215,6 +221,10 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
         // Mode set/reset (e.g. ESC[?2004h bracketed paste, ESC[?25l hide cursor)
         case 'h': esc.type = EscapeType::SetMode;   esc.value = p(0, 0); break;
         case 'l': esc.type = EscapeType::ResetMode; esc.value = p(0, 0); break;
+
+        // Window manipulation / report (CSI 18t = size in chars, 14t = pixels).
+        // The terminal must reply over the PTY (handled in Terminal).
+        case 't': esc.type = EscapeType::WindowOp;  esc.value = p(0, 0); break;
 
         default:
             esc.type = EscapeType::Unknown;

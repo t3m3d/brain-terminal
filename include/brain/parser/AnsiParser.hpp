@@ -14,6 +14,8 @@ enum class EscapeType {
     CursorForward,
     CursorBack,
     SetCursorPos,
+    CursorColumn,   // CSI n G  (CHA) - absolute column, 1-based
+    CursorRow,      // CSI n d  (VPA) - absolute row, 1-based
 
     // Screen operations
     ClearScreen,
@@ -50,9 +52,8 @@ enum class EscapeType {
     // CSI r: set top/bottom scroll region. .row = top, .col = bottom (1-based).
     SetScrollRegion,
 
-    // CSI J 1: erase from start to cursor.
+    // CSI J 1 / CSI K 1: erase from start to cursor (display / line).
     EraseInDisplayStart,
-    // CSI K 1: erase from start of line to cursor.
     EraseInLineStart,
 
     // CSI L / CSI M: insert/delete lines at cursor (vim, less). .value = count.
@@ -62,6 +63,10 @@ enum class EscapeType {
     InsertChars,
     DeleteChars,
     EraseChars,
+
+    // Window manipulation / report (CSI <n> t). .value = op: 18 = report text
+    // area size in chars, 14 = in pixels. The terminal must reply over the PTY.
+    WindowOp,
 
     Unknown
 };

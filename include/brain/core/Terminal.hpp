@@ -25,10 +25,16 @@ public:
     // Renderer calls this so Terminal can request repaints
     void setRenderCallback(RenderCallback cb) { m_renderCallback = std::move(cb); }
 
-    using TitleCallback = std::function<void(const std::string&)>;
-    using BellCallback  = std::function<void()>;
-    void setTitleCallback(TitleCallback cb) { m_titleCallback = std::move(cb); }
-    void setBellCallback (BellCallback  cb) { m_bellCallback  = std::move(cb); }
+    using TitleCallback    = std::function<void(const std::string&)>;
+    using BellCallback     = std::function<void()>;
+    using ResponseCallback = std::function<void(const std::string&)>;
+    void setTitleCallback   (TitleCallback    cb) { m_titleCallback    = std::move(cb); }
+    void setBellCallback    (BellCallback     cb) { m_bellCallback     = std::move(cb); }
+    void setResponseCallback(ResponseCallback cb) { m_responseCallback = std::move(cb); }
+
+    // Cell size in pixels, so CSI 14t (report size in pixels) can be answered.
+    void setCellPixels(int w, int h) { m_cellPxW = w; m_cellPxH = h; }
+    void setPaletteColor(int idx, uint32_t argb) { m_grid.setPaletteColor(idx, argb); }
 
     // Alternate screen buffer flag — true while the child is in altscreen
     // (vim, less, htop…). Exposed so the widget can suppress scrollback
@@ -123,13 +129,15 @@ private:
     std::map<uint16_t, std::string> m_linkUris;
     uint16_t m_nextLinkId = 1;
 
-    RenderCallback m_renderCallback;
-    TitleCallback  m_titleCallback;
-    BellCallback   m_bellCallback;
+    RenderCallback   m_renderCallback;
+    TitleCallback    m_titleCallback;
+    BellCallback     m_bellCallback;
+    ResponseCallback m_responseCallback;
+    int m_cellPxW = 8;    // cell pixel size, for CSI 14t replies
+    int m_cellPxH = 16;
 
     // Alternate screen buffer support. We snapshot the entire main grid
-    // (cells + cursor + attrs) on enter, and restore it on exit. Avoids
-    // wiring a true dual-grid into renderer::Grid for now.
+    // (cells + cursor + attrs) on enter, and restore it on exit.
     bool m_altScreen = false;
     std::vector<std::vector<renderer::Cell>> m_savedRows;
     int  m_savedCursorRow = 0;

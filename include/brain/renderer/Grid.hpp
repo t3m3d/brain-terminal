@@ -50,6 +50,10 @@ public:
     void setCursor(int row, int col);
 
     // Color + attribute control
+    // Override an ANSI palette colour (0..15) from config.
+    void setPaletteColor(int idx, uint32_t argb) {
+        if (idx >= 0 && idx < 16) { palette16[idx] = argb; palette256[idx] = argb; }
+    }
     void setFG16(int index);
     void setBG16(int index);
     void setFG256(int index);

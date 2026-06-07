@@ -111,4 +111,13 @@ if (BUILD_TESTING)
     )
     target_include_directories(test_ansi PRIVATE ${PROJECT_SOURCE_DIR}/include)
     add_test(NAME ansi_parser COMMAND test_ansi)
+
+    add_executable(test_winop
+        ${PROJECT_SOURCE_DIR}/tests/test_winop.cpp
+        ${PROJECT_SOURCE_DIR}/src/core/Terminal.cpp
+        ${PROJECT_SOURCE_DIR}/src/parser/AnsiParser.cpp
+        ${PROJECT_SOURCE_DIR}/src/renderer/Grid.cpp
+    )
+    target_include_directories(test_winop PRIVATE ${PROJECT_SOURCE_DIR}/include)
+    add_test(NAME window_query COMMAND test_winop)
 endif()

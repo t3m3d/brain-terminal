@@ -43,12 +43,15 @@ static std::string eventStr(const EscapeSequence& e) {
         case EscapeType::CursorForward: return "CURSOR_FWD "   + std::to_string(e.value);
         case EscapeType::CursorBack:    return "CURSOR_BACK "  + std::to_string(e.value);
         case EscapeType::SetCursorPos:  return "SET_CURSOR "   + std::to_string(e.row) + " " + std::to_string(e.col);
+        case EscapeType::CursorColumn:  return "CURSOR_COL "   + std::to_string(e.value);
+        case EscapeType::CursorRow:     return "CURSOR_ROW "   + std::to_string(e.value);
         case EscapeType::ClearScreen:   return "CLEAR_SCREEN " + std::to_string(e.value);
         case EscapeType::ClearLine:     return "CLEAR_LINE "   + std::to_string(e.value);
         case EscapeType::SGR:           return "SGR " + joinParams(e.params);
         case EscapeType::SetMode:       return "SET_MODE "   + std::to_string(e.value) + " " + (e.privateMode ? "1" : "0");
         case EscapeType::ResetMode:     return "RESET_MODE " + std::to_string(e.value) + " " + (e.privateMode ? "1" : "0");
         case EscapeType::OSC:           return "OSC " + e.osc;
+        case EscapeType::WindowOp:      return "WINDOW_OP " + std::to_string(e.value);
         default:                        return "UNKNOWN";
     }
 }

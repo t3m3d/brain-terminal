@@ -1,5 +1,7 @@
 #pragma once
 #include <string>
+#include <cstdint>
+#include <array>
 
 namespace brain {
 
@@ -21,6 +23,16 @@ public:
     const std::string& cursorStyle()    const { return m_cursorStyle; }
     const std::string& startupCommand() const { return m_startupCommand; }
 
+    // Colours as 0xAARRGGBB; 0 means "unset, use the theme/default".
+    uint32_t foreground()  const { return m_foreground; }
+    uint32_t background()  const { return m_background; }
+    uint32_t cursorColor() const { return m_cursorColor; }
+    uint32_t selectionBg() const { return m_selectionBg; }
+    uint32_t selectionFg() const { return m_selectionFg; }
+    uint32_t paletteColor(int i) const { return (i >= 0 && i < 16) ? m_palette[i] : 0; }
+    int      paddingX()    const { return m_paddingX; }
+    int      paddingY()    const { return m_paddingY; }
+
 private:
     std::string m_shell;
     std::string m_themePath;
@@ -32,6 +44,15 @@ private:
     int         m_opacityPercent = 100;
     std::string m_cursorStyle    = "block";    // block | underline | bar
     std::string m_startupCommand = "";         // command sent to shell after spawn
+
+    uint32_t m_foreground  = 0;   // 0 = unset
+    uint32_t m_background  = 0;
+    uint32_t m_cursorColor = 0;
+    uint32_t m_selectionBg = 0;
+    uint32_t m_selectionFg = 0;
+    std::array<uint32_t, 16> m_palette{};   // all 0 = unset
+    int m_paddingX = 6;
+    int m_paddingY = 4;
 
     Config() = default;
 };

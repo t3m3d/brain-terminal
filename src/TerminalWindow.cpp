@@ -14,12 +14,16 @@ TerminalWindow::TerminalWindow(const brain::Config& config)
 {
     setWindowTitle("brain");
 
+    // Top-level translucency must be set on the window for the central
+    // widget's transparent background to reach the compositor (Hyprland,
+    // DWM…). Skip when opacity == 100 — opaque windows are the fast path.
+    if (config.opacityPercent() < 100)
+        setAttribute(Qt::WA_TranslucentBackground);
+
     m_tabs = new QTabWidget(this);
     m_tabs->setDocumentMode(true);
     m_tabs->setTabsClosable(true);
     m_tabs->setMovable(true);
-    // Hide the tab bar entirely when only one terminal is open — keeps
-    // the single-session look clean (matches ghostty, kitty, wezterm).
     m_tabs->tabBar()->setAutoHide(true);
     setCentralWidget(m_tabs);
 
@@ -31,24 +35,20 @@ TerminalWindow::TerminalWindow(const brain::Config& config)
 
     newTab();
 
-    // Window-level shortcuts. Putting them on the window means they fire
-    // regardless of which widget has focus, so Ctrl+T works even when the
-    // shell is mid-command. Using ApplicationShortcut so Ctrl+Tab cycles
-    // tabs without the focused widget getting the bytes first.
     auto bind = [this](const QKeySequence& seq, void (TerminalWindow::*slot)()) {
         auto* sc = new QShortcut(seq, this);
         sc->setContext(Qt::ApplicationShortcut);
         connect(sc, &QShortcut::activated, this, slot);
     };
-    bind(QKeySequence("Ctrl+Shift+T"),     &TerminalWindow::newTab);
-    bind(QKeySequence("Ctrl+Shift+W"),     &TerminalWindow::closeCurrentTab);
-    bind(QKeySequence("Ctrl+Tab"),         &TerminalWindow::nextTab);
-    bind(QKeySequence("Ctrl+Shift+Tab"),   &TerminalWindow::prevTab);
-    bind(QKeySequence("Ctrl+PgDown"),      &TerminalWindow::nextTab);
-    bind(QKeySequence("Ctrl+PgUp"),        &TerminalWindow::prevTab);
+    bind(QKeySequence("Ctrl+Shift+T"),   &TerminalWindow::newTab);
+    bind(QKeySequence("Ctrl+Shift+W"),   &TerminalWindow::closeCurrentTab);
+    bind(QKeySequence("Ctrl+Tab"),       &TerminalWindow::nextTab);
+    bind(QKeySequence("Ctrl+Shift+Tab"), &TerminalWindow::prevTab);
+    bind(QKeySequence("Ctrl+PgDown"),    &TerminalWindow::nextTab);
+    bind(QKeySequence("Ctrl+PgUp"),      &TerminalWindow::prevTab);
 
-    int w = m_config.windowWidth()  > 0 ? m_config.windowWidth()  : 1000;
-    int h = m_config.windowHeight() > 0 ? m_config.windowHeight() : 640;
+    int w = config.windowWidth()  > 0 ? config.windowWidth()  : 1000;
+    int h = config.windowHeight() > 0 ? config.windowHeight() : 640;
     resize(w, h);
 }
 
