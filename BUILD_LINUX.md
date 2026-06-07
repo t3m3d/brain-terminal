@@ -17,12 +17,22 @@ distro with Qt6 packages.
 # Optional: build then immediately launch
 ./build_linux.sh --run
 
+# Optional: build, then build + run the ctest suite
+./build_linux.sh --test
+
 # Optional: wipe build-linux/ before configuring (after CMakeLists changes)
 ./build_linux.sh --clean
 ```
 
 The script puts everything in `./build-linux/` and produces
 `./build-linux/terk`. Nothing is installed system-wide.
+
+**Verified working** (2026-06-06): builds, links, runs, and spawns a shell
+through the PTY on Arch Linux (zen kernel) with **cmake 4.3.3 / gcc 16.1.1 /
+Qt6 6.11.1**. The Qt `AUTOMOC` step is wired in `CMakeLists.txt` (the
+`TerminalWidget` `Q_OBJECT` needs it). A Krypton shell-pick hook is live (see
+`KRYPTON_INTEGRATION.md`); the Krypton bits live in `krypton/` and never touch
+the C++ build (CMake only globs `src/` + `include/`).
 
 ## Prerequisites
 

@@ -9,6 +9,7 @@
 # Usage:
 #   ./build_linux.sh              # configure + build into ./build-linux
 #   ./build_linux.sh --run        # ... then launch ./build-linux/terk
+#   ./build_linux.sh --test       # ... then build + run the ctest suite
 #   ./build_linux.sh --clean      # wipe build-linux first
 #
 # Prereqs: see BUILD_LINUX.md. Short version:
@@ -22,10 +23,12 @@ BUILD_DIR="$SCRIPT_DIR/build-linux"
 
 CLEAN=0
 RUN=0
+TEST=0
 for arg in "$@"; do
     case "$arg" in
         --clean) CLEAN=1 ;;
         --run)   RUN=1 ;;
+        --test)  TEST=1 ;;
         -h|--help)
             grep '^#' "${BASH_SOURCE[0]}" | sed 's|^# \?||'
             exit 0 ;;
@@ -79,6 +82,12 @@ fi
 
 size=$(stat -c '%s' "$BUILD_DIR/terk" 2>/dev/null || wc -c <"$BUILD_DIR/terk")
 echo "build_linux.sh: built $BUILD_DIR/terk ($size bytes)"
+
+if [[ $TEST -eq 1 ]]; then
+    echo "build_linux.sh: running tests (ctest)..."
+    cmake --build . --target test_ansi -- -j"$(nproc 2>/dev/null || echo 2)"
+    ctest --output-on-failure
+fi
 
 if [[ $RUN -eq 1 ]]; then
     echo "build_linux.sh: launching terk..."
