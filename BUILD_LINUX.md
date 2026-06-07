@@ -1,6 +1,6 @@
-# Building terk on Linux
+# Building brain on Linux
 
-terk is a Qt6 / C++20 terminal emulator that already compiles
+brain is a Qt6 / C++20 terminal emulator that already compiles
 cross-platform via CMake. This doc + the companion `build_linux.sh`
 codify the Linux build path so you don't have to remember the cmake
 flags. Tested under **Arch on WSL2** for parity with the Krypton
@@ -25,7 +25,7 @@ distro with Qt6 packages.
 ```
 
 The script puts everything in `./build-linux/` and produces
-`./build-linux/terk`. Nothing is installed system-wide.
+`./build-linux/brain`. Nothing is installed system-wide.
 
 **Verified working** (2026-06-06): builds, links, runs, and spawns a shell
 through the PTY on Arch Linux (zen kernel) with **cmake 4.3.3 / gcc 16.1.1 /
@@ -63,7 +63,7 @@ header for `forkpty`.
 
 ### WSL2 specific
 
-- **WSL2 only** — the build itself works fine under WSL1, but terk
+- **WSL2 only** — the build itself works fine under WSL1, but brain
   spawns child processes through PTYs and uses some syscalls WSL1
   emulates poorly. Run inside `wsl --version` ≥ 2.
 - WSL2 picks up X / Wayland automatically on Windows 11 (WSLg). If
@@ -79,8 +79,8 @@ header for `forkpty`.
 | `platform/windows/` | Windows ConPTY backend. Not used on Linux. |
 | `src/` | Application code. `file(GLOB_RECURSE)` picks it all up. |
 | `include/` | Headers, organised into `collect/`, `render/`, `platform/`, `utils/`, `branding/`. |
-| `resources/config/terk.conf` | Default config. Installs to `share/terk/` on `make install`. |
-| `resources/themes/` | Colour themes directory. Installs to `share/terk/themes/`. |
+| `resources/config/brain.conf` | Default config. Installs to `share/brain/` on `make install`. |
+| `resources/themes/` | Colour themes directory. Installs to `share/brain/themes/`. |
 
 ## Build modes
 
@@ -104,8 +104,8 @@ cd build-linux
 sudo cmake --install . --prefix /usr/local
 ```
 
-That puts `terk` in `/usr/local/bin/` and the config/themes under
-`/usr/local/share/terk/`.
+That puts `brain` in `/usr/local/bin/` and the config/themes under
+`/usr/local/share/brain/`.
 
 ## Troubleshooting
 

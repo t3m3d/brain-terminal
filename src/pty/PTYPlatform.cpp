@@ -1,4 +1,4 @@
-#include "kterm/pty/PTYPlatform.hpp"
+#include "brain/pty/PTYPlatform.hpp"
 
 #if defined(__APPLE__)
 #include "../../platform/macos/PTYPlatform.cpp"

@@ -1,10 +1,10 @@
-#include "kterm/pty/PTY.hpp"
-#include "kterm/pty/PTYPlatform.hpp"
+#include "brain/pty/PTY.hpp"
+#include "brain/pty/PTYPlatform.hpp"
 
 #include <thread>
 #include <vector>
 
-using namespace kterm::pty;
+using namespace brain::pty;
 
 PTY::PTY() : m_masterFd(-1) {}
 

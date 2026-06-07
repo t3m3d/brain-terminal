@@ -1,11 +1,11 @@
 .vs
 build/
-kterm-native
-kterm.app/
+brain-native
+brain.app/
 brain.app/
 build-linux/
 build-windows/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
-krypton/linux/terk_prompt
+krypton/linux/brain_prompt

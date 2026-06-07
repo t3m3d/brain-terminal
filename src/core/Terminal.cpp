@@ -1,7 +1,7 @@
-#include "kterm/core/Terminal.hpp"
+#include "brain/core/Terminal.hpp"
 #include <algorithm>
 
-using namespace kterm::core;
+using namespace brain::core;
 
 Terminal::Terminal(int cols, int rows)
     : m_cols(cols),

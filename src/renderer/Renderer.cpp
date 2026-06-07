@@ -1,3 +1,3 @@
-#include "kterm/renderer/Renderer.hpp"
+#include "brain/renderer/Renderer.hpp"
 
-using namespace kterm::renderer;
+using namespace brain::renderer;

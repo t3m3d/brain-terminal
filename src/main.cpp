@@ -2,8 +2,8 @@
 #include <QDir>
 #include <QStandardPaths>
 
-#include "kterm/Config.hpp"
-#include "kterm/ui/TerminalWindow.hpp"
+#include "brain/Config.hpp"
+#include "brain/ui/TerminalWindow.hpp"
 
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
@@ -20,12 +20,12 @@ int main(int argc, char** argv) {
     // Load config (search order: user -> local -> built-in)
     // ------------------------------------------------------------
 
-    kterm::Config config = kterm::Config::load("");
+    brain::Config config = brain::Config::load("");
 
     // ------------------------------------------------------------
     // Create the main window and pass config to it
     // ------------------------------------------------------------
-    kterm::ui::TerminalWindow win(config);
+    brain::ui::TerminalWindow win(config);
     win.show();
 
     return app.exec();

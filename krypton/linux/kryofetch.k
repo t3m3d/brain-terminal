@@ -1,6 +1,6 @@
 // kryofetch.k — neofetch-style system info, in Krypton, for Linux.
 //
-// A "little Krypton here and there": a terk built-in command, written in
+// A "little Krypton here and there": a brain built-in command, written in
 // pure Krypton (no C). Reads real Linux system info via exec()/proc and
 // renders a Krypton-themed ASCII logo with ANSI colour. Run: kcc -r kryofetch.k
 //
@@ -106,7 +106,7 @@ just run {
     info = info + GRB + "Uptime: " + RST + toStr(upDays) + "d " + toStr(upHrs) + "h " + toStr(upMin) + "m" + fromCharCode(10)
     info = info + GRB + "Shell:  " + RST + shell + fromCharCode(10)
     info = info + GRB + "Pkgs:   " + RST + pkgs + fromCharCode(10)
-    info = info + GRB + "Term:   " + RST + "terk" + fromCharCode(10)
+    info = info + GRB + "Term:   " + RST + "brain" + fromCharCode(10)
 
     // ── logo + info, side by side ─────────────────────────────────────
     // A small Krypton crystal. Logo lines on the left, info on the right.

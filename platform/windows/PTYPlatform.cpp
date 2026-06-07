@@ -15,7 +15,7 @@
 //   The default shell is "cmd.exe" today. Pointing this at a Krypton-built
 //   shell ("C:\krypton\kr.exe" for the REPL, or any .ks script the user
 //   chose in their config) is a one-line change once the cross-platform
-//   Config layer exposes a "shell" field. See kterm::Config TODOs.
+//   Config layer exposes a "shell" field. See brain::Config TODOs.
 
 // ConPTY (CreatePseudoConsole / ResizePseudoConsole / ClosePseudoConsole)
 // was added in Windows 10 1809 (build 17763). Pin both _WIN32_WINNT and
@@ -65,9 +65,9 @@ extern "C" {
 #include <unordered_map>
 #include <vector>
 
-#include "kterm/pty/PTYPlatform.hpp"
+#include "brain/pty/PTYPlatform.hpp"
 
-using namespace kterm::pty;
+using namespace brain::pty;
 
 namespace {
 

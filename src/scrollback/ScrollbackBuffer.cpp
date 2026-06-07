@@ -1,6 +1,6 @@
-#include "kterm/scrollback/ScrollbackBuffer.hpp"
+#include "brain/scrollback/ScrollbackBuffer.hpp"
 
-using namespace kterm::scrollback;
+using namespace brain::scrollback;
 
 ScrollbackBuffer::ScrollbackBuffer(size_t maxLines)
     : m_maxLines(maxLines) {}

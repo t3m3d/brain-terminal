@@ -1,9 +1,9 @@
-#include "kterm/ui/TerminalWindow.hpp"
-#include "kterm/ui/TerminalWidget.hpp"
+#include "brain/ui/TerminalWindow.hpp"
+#include "brain/ui/TerminalWidget.hpp"
 
-namespace kterm::ui {
+namespace brain::ui {
 
-TerminalWindow::TerminalWindow(const kterm::Config& config)
+TerminalWindow::TerminalWindow(const brain::Config& config)
     : m_config(config)
 {
     setWindowTitle("brain");

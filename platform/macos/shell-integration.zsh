@@ -5,7 +5,7 @@
 #   green = exit 0, red = nonzero exit, amber = still running.
 #
 # Install: add this line to the END of your ~/.zshrc (after p10k / oh-my-zsh):
-#   source /path/to/terk/platform/macos/shell-integration.zsh
+#   source /path/to/brain/platform/macos/shell-integration.zsh
 
 [[ -n "$BRAIN_SHELL_INTEGRATION" ]] && return
 typeset -g BRAIN_SHELL_INTEGRATION=1

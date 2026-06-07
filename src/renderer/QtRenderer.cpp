@@ -1,11 +1,11 @@
-#include "kterm/renderer/QtRenderer.hpp"
+#include "brain/renderer/QtRenderer.hpp"
 #include <QPainter>
 #include <QFontMetrics>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 
-using namespace kterm::renderer;
+using namespace brain::renderer;
 
 QtRenderer::QtRenderer(const QFont& font, int cw, int ch)
     : m_font(font), m_cellWidth(cw), m_cellHeight(ch)

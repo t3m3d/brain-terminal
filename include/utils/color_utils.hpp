@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <string>
 
-namespace kterm::utils {
+namespace brain::utils {
 
 uint32_t hexToARGB(const std::string& hex);
 

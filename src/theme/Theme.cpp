@@ -1,7 +1,7 @@
-#include "kterm/theme/Theme.hpp"
+#include "brain/theme/Theme.hpp"
 #include <fstream>
 
-using namespace kterm::theme;
+using namespace brain::theme;
 
 bool Theme::loadFromFile(const std::string& path) {
     std::ifstream file(path);

@@ -1,5 +1,5 @@
 // test_ansi.cpp — unit test for the ANSI/VT parser, doubling as the
-// cross-validation oracle for the Krypton port (krypton/linux/terk_ansi.k):
+// cross-validation oracle for the Krypton port (krypton/linux/brain_ansi.k):
 // it emits events in the exact same text format, so the two parsers' output
 // can be diffed byte-for-byte.
 //
@@ -7,13 +7,13 @@
 //   g++ -std=c++20 -Iinclude tests/test_ansi.cpp src/parser/AnsiParser.cpp -o /tmp/t && /tmp/t
 // Or via ctest once wired into CMakeLists.
 
-#include "kterm/parser/AnsiParser.hpp"
+#include "brain/parser/AnsiParser.hpp"
 #include <string>
 #include <vector>
 #include <iostream>
 #include <sstream>
 
-using namespace kterm::parser;
+using namespace brain::parser;
 
 static std::string escText(const std::string& s) {
     std::string o;
@@ -35,7 +35,7 @@ static std::string joinParams(const std::vector<int>& p) {
     return ss.str();
 }
 
-// Map an EscapeSequence to the same one-line event string terk_ansi.k emits.
+// Map an EscapeSequence to the same one-line event string brain_ansi.k emits.
 static std::string eventStr(const EscapeSequence& e) {
     switch (e.type) {
         case EscapeType::CursorUp:      return "CURSOR_UP "    + std::to_string(e.value);
@@ -66,7 +66,7 @@ int main() {
     const std::string ESC = "\x1b";
     const std::string BEL = "\x07";
 
-    // Same fixture as terk_ansi.k's self-test.
+    // Same fixture as brain_ansi.k's self-test.
     std::string input =
         "hello " + ESC + "[31m" + "red" + ESC + "[0m"
         + ESC + "[2J" + ESC + "]0;mytitle" + BEL + "done" + ESC + "[1;5H"

@@ -1,11 +1,11 @@
-#include "kterm/pty/PTYPlatform.hpp"
+#include "brain/pty/PTYPlatform.hpp"
 #include <util.h>          // forkpty (macOS lives in <util.h>, not <pty.h>)
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <cstdlib>
 
-using namespace kterm::pty;
+using namespace brain::pty;
 
 PTYHandles PTYPlatform::createPTY(const std::string& shellPath, int cols, int rows) {
     PTYHandles handles;

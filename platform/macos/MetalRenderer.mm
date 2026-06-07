@@ -4,8 +4,8 @@
 #include <vector>
 #include <cmath>
 
-#include "kterm/renderer/Grid.hpp"
-#include "kterm/renderer/Cell.hpp"
+#include "brain/renderer/Grid.hpp"
+#include "brain/renderer/Cell.hpp"
 
 // One vertex. Field order matches the shader's VIn (pos, uv, color) so that
 // float4 color lands at a 16-byte-aligned offset with no hidden padding.
@@ -185,7 +185,7 @@ static inline void argb(uint32_t c, float* r, float* g, float* b, float* a) {
     *a = ((c>>24)&0xFF)/255.0f; *r = ((c>>16)&0xFF)/255.0f; *g = ((c>>8)&0xFF)/255.0f; *b = (c&0xFF)/255.0f;
 }
 
-- (void)renderTerminal:(kterm::core::Terminal*)term layer:(CAMetalLayer*)layer
+- (void)renderTerminal:(brain::core::Terminal*)term layer:(CAMetalLayer*)layer
                  viewW:(CGFloat)viewW viewH:(CGFloat)viewH scrollOffset:(int)scrollOffset
                   cols:(int)cols rows:(int)rows hasSelection:(BOOL)hasSelection
               selStart:(NSPoint)selStart selEnd:(NSPoint)selEnd caretOn:(BOOL)caretOn
@@ -215,20 +215,20 @@ static inline void argb(uint32_t c, float* r, float* g, float* b, float* a) {
         for (int vr = 0; vr < R; ++vr) {
             int idx = (H - s) + vr;
             if (idx < 0) continue;
-            const std::vector<kterm::renderer::Cell>* line;
+            const std::vector<brain::renderer::Cell>* line;
             if (idx < H) line = &grid.historyRow(idx);
             else { int lr = idx - H; if (lr >= R) continue; line = &live[lr]; }
 
             float y = vr * (float)_cellH;
             for (int c = 0; c < (int)line->size(); ++c) {
-                const kterm::renderer::Cell& cell = (*line)[c];
+                const brain::renderer::Cell& cell = (*line)[c];
                 float x = (float)_gutterW + c * (float)_cellW;   // shift past gutter
                 uint8_t at = cell.attrs;
 
                 float fr=dfR,fg=dfG,fb=dfB; bool hasBg=false; float br=0,bg=0,bb=0;
                 if (cell.fg != 0xFFFFFFFF) { float a; argb(cell.fg,&fr,&fg,&fb,&a); }
                 if (((cell.bg>>24)&0xFF) != 0) { float a; argb(cell.bg,&br,&bg,&bb,&a); hasBg=true; }
-                if (at & kterm::renderer::ATTR_INVERSE) {
+                if (at & brain::renderer::ATTR_INVERSE) {
                     float tr=fr,tg=fg,tb=fb;
                     fr = hasBg?br:dbR; fg = hasBg?bg:dbG; fb = hasBg?bb:dbB;
                     br=tr; bg=tg; bb=tb; hasBg=true;
@@ -237,8 +237,8 @@ static inline void argb(uint32_t c, float* r, float* g, float* b, float* a) {
 
                 uint32_t cp = cell.ch;
                 if (cp != ' ' && cp != 0) {
-                    int variant = ((at&kterm::renderer::ATTR_BOLD)&&(at&kterm::renderer::ATTR_ITALIC))?3
-                                : (at&kterm::renderer::ATTR_BOLD)?1 : (at&kterm::renderer::ATTR_ITALIC)?2 : 0;
+                    int variant = ((at&brain::renderer::ATTR_BOLD)&&(at&brain::renderer::ATTR_ITALIC))?3
+                                : (at&brain::renderer::ATTR_BOLD)?1 : (at&brain::renderer::ATTR_ITALIC)?2 : 0;
                     GlyphInfo gi = [self glyphFor:cp variant:variant];
                     if (gi.valid) [self addGlyph:gi x:x y:y r:fr g:fg b:fb];
                 }

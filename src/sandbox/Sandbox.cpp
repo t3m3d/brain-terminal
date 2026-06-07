@@ -1,6 +1,6 @@
-#include "kterm/sandbox/Sandbox.hpp"
+#include "brain/sandbox/Sandbox.hpp"
 
-using namespace kterm::sandbox;
+using namespace brain::sandbox;
 
 void Sandbox::applyRestrictions() {
     // Stub: apply seccomp or syscall filters

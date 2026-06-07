@@ -1,9 +1,9 @@
-#include "kterm/Config.hpp"
+#include "brain/Config.hpp"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
 
-using namespace kterm;
+using namespace brain;
 
 // ------------------------------------------------------------
 // Default config values

@@ -1,4 +1,4 @@
-// terk/krypton/run.k — Krypton-native Windows mini-terminal.
+// brain/krypton/run.k — Krypton-native Windows mini-terminal.
 //
 // v0.6: drop the separate input + Send button. RichEdit is now WRITABLE
 // and fills the whole window. After each command we append a
@@ -20,12 +20,12 @@ import "head:windows"
 import "head:uxtheme"
 import "k:gui"
 
-func ctxSet(key, value) { guiStateSet("terk." + key, value) emit "" }
-func ctxGet(key)        { emit guiStateGet("terk." + key) }
+func ctxSet(key, value) { guiStateSet("brain." + key, value) emit "" }
+func ctxGet(key)        { emit guiStateGet("brain." + key) }
 
 // Forward slashes in the path — Krypton's string-literal escapes treat
 // "\\t" as TAB (feedback_krypton_string_escapes.md), and cmd accepts /.
-let TMP_OUT = "C:/tmp/terk_out.txt"
+let TMP_OUT = "C:/tmp/brain_out.txt"
 
 
 // ── Win32: user + host name ────────────────────────────────────
@@ -182,7 +182,7 @@ func utf8ToUtf16Buf(s) {
 // CP437-byte path: utf8ToAscii maps UTF-8 block/box chars to CP437 byte
 // values, then guiRichAppend inserts. Conversion uses the RichEdit's
 // font charset, which was set to OEM_CHARSET in setRichFontOem.
-// UTF-8 path via process manifest: terk.exe.manifest declares
+// UTF-8 path via process manifest: brain.exe.manifest declares
 // activeCodePage=UTF-8, so SendMessageA's ANSI→Unicode conversion uses
 // CP_UTF8 (65001) instead of CP1252. Block / box / degree chars render
 // as their actual Unicode glyphs without needing SendMessageW.
@@ -484,7 +484,7 @@ func appendOut(text) {
 }
 
 func appendPrompt() {
-    appendOut(ctxGet("terk.prompt"))
+    appendOut(ctxGet("brain.prompt"))
     let curLen = richLength()
     ctxSet("promptEnd", curLen + "")
     ctxSet("savedPrefix", richSubstring(0, curLen))
@@ -647,7 +647,7 @@ func fitRichToClient() {
 
 just run {
     guiInit()
-    let win = guiWindow("terk - Krypton terminal v0.6", 900, 600)
+    let win = guiWindow("brain - Krypton terminal v0.6", 900, 600)
     ctxSet("ui.window", win)
 
     // Dark title bar (DwmSetWindowAttribute DWMWA_USE_IMMERSIVE_DARK_MODE).
@@ -684,9 +684,9 @@ just run {
     ctxSet("ui.output", rich)
 
     let prompt = makePrompt()
-    ctxSet("terk.prompt", prompt)
+    ctxSet("brain.prompt", prompt)
 
-    appendOut("terk v0.6 - Krypton native terminal\n")
+    appendOut("brain v0.6 - Krypton native terminal\n")
     appendOut("Type a command and press Enter. `exit` to quit. `clear` to clear.\n\n")
     appendPrompt()
     // Flag for onTimer to run kryofetch on the first tick after guiShow.

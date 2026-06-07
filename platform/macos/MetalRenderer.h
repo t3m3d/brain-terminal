@@ -2,7 +2,7 @@
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/CAMetalLayer.h>
 #import <Metal/Metal.h>
-#include "kterm/core/Terminal.hpp"
+#include "brain/core/Terminal.hpp"
 
 // GPU renderer for the terminal grid: one CoreText glyph atlas + a single
 // batched draw (cell backgrounds, glyphs, selection, cursor). Opt-in via
@@ -29,7 +29,7 @@
 @property (nonatomic, assign) CGFloat gutterW;
 @property (nonatomic, assign) int hoverRow;
 
-- (void)renderTerminal:(kterm::core::Terminal*)term
+- (void)renderTerminal:(brain::core::Terminal*)term
                  layer:(CAMetalLayer*)layer
                  viewW:(CGFloat)viewW
                  viewH:(CGFloat)viewH

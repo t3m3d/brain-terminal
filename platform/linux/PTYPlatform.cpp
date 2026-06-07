@@ -1,4 +1,4 @@
-#include "kterm/pty/PTYPlatform.hpp"
+#include "brain/pty/PTYPlatform.hpp"
 #include <pty.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
@@ -9,7 +9,7 @@
 #include <sstream>
 #include <string>
 
-using namespace kterm::pty;
+using namespace brain::pty;
 
 namespace {
 

@@ -22,7 +22,7 @@ PTY ──► PTY/PTYPlatform ──► Terminal ──► AnsiParser ──► 
 Reused unchanged: `core/Terminal`, `parser/AnsiParser`, `renderer/Grid`+`Cell`,
 `pty/PTY`, `scrollback/ScrollbackBuffer`. The macOS layer adds
 `platform/macos/PTYPlatform.cpp` (forkpty via `<util.h>`, `TERM=xterm-256color`,
-login shell) plus the Cocoa/Metal files above. The core namespace stays `kterm::`.
+login shell) plus the Cocoa/Metal files above. The core namespace stays `brain::`.
 
 ## Build / run
 

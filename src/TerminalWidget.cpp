@@ -1,12 +1,12 @@
-#include "kterm/ui/TerminalWidget.hpp"
+#include "brain/ui/TerminalWidget.hpp"
 #include <QPainter>
 #include <QKeyEvent>
 #include <QFont>
 #include <QFontMetrics>
 
-namespace kterm::ui {
+namespace brain::ui {
 
-TerminalWidget::TerminalWidget(const kterm::Config& config, QWidget* parent)
+TerminalWidget::TerminalWidget(const brain::Config& config, QWidget* parent)
     : QWidget(parent),
       m_config(config),
       m_terminal(80, 24),   // initial size; updated on resizeEvent
@@ -80,7 +80,7 @@ void TerminalWidget::paintEvent(QPaintEvent*) {
 // Keyboard -> PTY
 // ------------------------------------------------------------
 void TerminalWidget::keyPressEvent(QKeyEvent* e) {
-    using namespace kterm::input;
+    using namespace brain::input;
     Modifier mod = Modifier::None;
     if (e->modifiers() & Qt::ShiftModifier) mod = Modifier::Shift;
     else if (e->modifiers() & Qt::ControlModifier) mod = Modifier::Ctrl;
@@ -108,4 +108,4 @@ void TerminalWidget::resizeEvent(QResizeEvent*) {
     m_pty.resize(cols, rows);
 }
 
-} // namespace kterm::ui
+} // namespace brain::ui

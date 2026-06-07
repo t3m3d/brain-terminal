@@ -1,7 +1,7 @@
-#include "kterm/renderer/Grid.hpp"
+#include "brain/renderer/Grid.hpp"
 #include <algorithm>
 
-using namespace kterm::renderer;
+using namespace brain::renderer;
 
 Grid::Grid(int cols, int rows)
     : m_cols(cols), m_rows(rows),

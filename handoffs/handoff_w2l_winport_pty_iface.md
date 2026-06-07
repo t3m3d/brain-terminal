@@ -7,7 +7,7 @@ collides with what you're doing.**
 
 ## What changed (interface)
 
-`include/kterm/pty/PTYPlatform.hpp` now has four methods instead of two:
+`include/brain/pty/PTYPlatform.hpp` now has four methods instead of two:
 
 ```cpp
 static PTYHandles createPTY(const std::string& shellPath, int cols, int rows);
@@ -62,7 +62,7 @@ pipe in `platform/linux/PTYPlatform.cpp` would mirror it.
 
 ## What I'd ask of you
 
-1. **Pull and glance** at `include/kterm/pty/PTYPlatform.hpp` +
+1. **Pull and glance** at `include/brain/pty/PTYPlatform.hpp` +
    `src/pty/PTY.cpp` — those are the only shared touch points. If your
    in-flight Linux work has the same files open, easier to resolve
    now than after either of us pushes more.
@@ -83,7 +83,7 @@ whoever has the Qt6 + MSVC stack can verify with:
 ```
 cmake -G "Visual Studio 17 2022" -A x64 -B build
 cmake --build build --config Release
-.\build\Release\terk.exe
+.\build\Release\brain.exe
 ```
 
 Manifest embeds via the generated `.rc`; ConPTY sessions spawn cmd.exe

@@ -7,13 +7,13 @@
 #include <cstdint>
 #include <cstdlib>
 
-#include "kterm/core/Terminal.hpp"
-#include "kterm/pty/PTY.hpp"
-#include "kterm/renderer/Grid.hpp"
-#include "kterm/renderer/Cell.hpp"
+#include "brain/core/Terminal.hpp"
+#include "brain/pty/PTY.hpp"
+#include "brain/renderer/Grid.hpp"
+#include "brain/renderer/Cell.hpp"
 
-using kterm::core::Terminal;
-using kterm::pty::PTY;
+using brain::core::Terminal;
+using brain::pty::PTY;
 
 // Decode the grid's 0xAARRGGBB packing into an NSColor.
 static NSColor* colorFromARGB(uint32_t c) {
@@ -399,7 +399,7 @@ static NSColor* colorFromARGB(uint32_t c) {
 }
 
 // Cells of visible row vr (history or live), matching drawRect's mapping.
-- (const std::vector<kterm::renderer::Cell>*)viewportRow:(int)vr {
+- (const std::vector<brain::renderer::Cell>*)viewportRow:(int)vr {
     const auto& grid = _term->grid();
     int H = grid.historyLines();
     int s = _scrollOffset; if (s < 0) s = 0; if (s > H) s = H;
@@ -417,7 +417,7 @@ static NSColor* colorFromARGB(uint32_t c) {
     int sr, sc, er, ec; [self normSelStart:&sr col:&sc end:&er col:&ec];
     NSMutableString* out = [NSMutableString string];
     for (int vr = sr; vr <= er; ++vr) {
-        const std::vector<kterm::renderer::Cell>* line = [self viewportRow:vr];
+        const std::vector<brain::renderer::Cell>* line = [self viewportRow:vr];
         if (!line) continue;
         int n  = (int)line->size();
         int c0 = (vr == sr) ? sc : 0;
@@ -547,7 +547,7 @@ static std::string sanitizePaste(const std::string& in) {
     NSMutableString* out = [NSMutableString string];
     for (long abs = start; abs <= end; ++abs) {
         long idx = abs - base;            // index into [history.. ++ live..]
-        const std::vector<kterm::renderer::Cell>* line = nullptr;
+        const std::vector<brain::renderer::Cell>* line = nullptr;
         if (idx >= 0 && idx < H) line = &grid.historyRow((int)idx);
         else {
             long lr = idx - H;
@@ -596,20 +596,20 @@ static std::string sanitizePaste(const std::string& in) {
         // Map this visible row to [history(0..H-1) ++ live(0..R-1)], offset up by s.
         int idx = (H - s) + vr;
         if (idx < 0) continue;
-        const std::vector<kterm::renderer::Cell>* line;
+        const std::vector<brain::renderer::Cell>* line;
         if (idx < H) line = &grid.historyRow(idx);
         else { int lr = idx - H; if (lr >= R) continue; line = &live[lr]; }
 
         CGFloat y = vr * _cellH;
         for (int c = 0; c < (int)line->size(); ++c) {
-            const kterm::renderer::Cell& cell = (*line)[c];
+            const brain::renderer::Cell& cell = (*line)[c];
             CGFloat x = _gutterW + c * _cellW;   // shift past the gutter
             uint8_t a = cell.attrs;
 
             // Effective colors (fg sentinel 0xFFFFFFFF / bg alpha 0 = defaults).
             NSColor* fg = (cell.fg != 0xFFFFFFFF) ? colorFromARGB(cell.fg) : _defaultFg;
             NSColor* bg = (((cell.bg >> 24) & 0xFF) != 0) ? colorFromARGB(cell.bg) : nil;
-            if (a & kterm::renderer::ATTR_INVERSE) {       // swap fg/bg
+            if (a & brain::renderer::ATTR_INVERSE) {       // swap fg/bg
                 NSColor* prevFg = fg;
                 fg = bg ? bg : _defaultBg;
                 bg = prevFg;
@@ -623,9 +623,9 @@ static std::string sanitizePaste(const std::string& in) {
             uint32_t cp = cell.ch;
             if (cp != ' ' && cp != 0) {
                 NSFont* f = _font;
-                if      ((a & kterm::renderer::ATTR_BOLD) && (a & kterm::renderer::ATTR_ITALIC)) f = _fontBoldItalic;
-                else if (a & kterm::renderer::ATTR_BOLD)   f = _fontBold;
-                else if (a & kterm::renderer::ATTR_ITALIC) f = _fontItalic;
+                if      ((a & brain::renderer::ATTR_BOLD) && (a & brain::renderer::ATTR_ITALIC)) f = _fontBoldItalic;
+                else if (a & brain::renderer::ATTR_BOLD)   f = _fontBold;
+                else if (a & brain::renderer::ATTR_ITALIC) f = _fontItalic;
                 // Fallback to the Nerd Font for glyphs the body font lacks.
                 if (_fallbackFont && ![[f coveredCharacterSet] longCharacterIsMember:cp]
                                   &&  [[_fallbackFont coveredCharacterSet] longCharacterIsMember:cp])
@@ -633,7 +633,7 @@ static std::string sanitizePaste(const std::string& in) {
 
                 NSMutableDictionary* attrs = [@{ NSFontAttributeName: f,
                                                  NSForegroundColorAttributeName: fg } mutableCopy];
-                if (a & kterm::renderer::ATTR_UNDERLINE)
+                if (a & brain::renderer::ATTR_UNDERLINE)
                     attrs[NSUnderlineStyleAttributeName] = @(NSUnderlineStyleSingle);
 
                 NSString* s = [[NSString alloc] initWithBytes:&cp

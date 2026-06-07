@@ -1,10 +1,10 @@
-#include "kterm/theme/ThemeLoader.hpp"
-#include "kterm/theme/Theme.hpp"
+#include "brain/theme/ThemeLoader.hpp"
+#include "brain/theme/Theme.hpp"
 #include <fstream>
 #include <sstream>
 #include <cctype>
 
-using namespace kterm::theme;
+using namespace brain::theme;
 
 Theme ThemeLoader::loadFromFile(const std::string& path) {
     Theme theme;

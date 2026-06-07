@@ -1,8 +1,8 @@
-#include "kterm/parser/AnsiParser.hpp"
+#include "brain/parser/AnsiParser.hpp"
 #include <cctype>
 #include <sstream>
 
-using namespace kterm::parser;
+using namespace brain::parser;
 
 // Cap on an unterminated escape sequence held in the buffer. A hostile program
 // can emit "ESC]" (or "ESC[") and then stream megabytes with no terminator;

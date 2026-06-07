@@ -41,8 +41,8 @@ points, ordered by how much shared code each one touches.
    setup.ks (if present) → explicit config path → `$SHELL` → `/bin/bash`** —
    the opt-in script decides when it exists. (Note: Windows currently honours
    an explicit path *before* Krypton; the orderings can be aligned if we want
-   one rule — flag for W.) Verified: with `setup.ks` present, terk spawns
-   `terk → zsh`; without it, `terk → bash`.
+   one rule — flag for W.) Verified: with `setup.ks` present, brain spawns
+   `brain → zsh`; without it, `brain → bash`.
 
 ## Tier 2 — shared, talk to Linux first
 

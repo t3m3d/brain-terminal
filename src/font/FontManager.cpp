@@ -1,6 +1,6 @@
-#include "kterm/font/FontManager.hpp"
+#include "brain/font/FontManager.hpp"
 
-using namespace kterm::font;
+using namespace brain::font;
 
 bool FontManager::loadFont(const std::string& path) {
     m_fontPath = path;

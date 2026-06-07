@@ -1,12 +1,12 @@
-# terk — Krypton (Linux track)
+# brain — Krypton (Linux track)
 
-This directory holds the **Krypton** pieces of terk's Linux port. It is
+This directory holds the **Krypton** pieces of brain's Linux port. It is
 deliberately **split from the C++ app**: the CMake build only globs `src/`
-and `include/`, so nothing here affects the C++ `terk` binary, and nothing
+and `include/`, so nothing here affects the C++ `brain` binary, and nothing
 in the C++ tree is needed to compile these.
 
 - **C++ app** (the primary Linux build): `CMakeLists.txt`, `src/`, `include/`,
-  `platform/` → `./build_linux.sh` → `build-linux/terk` (Qt6).
+  `platform/` → `./build_linux.sh` → `build-linux/brain` (Qt6).
 - **Krypton bits** (this dir): compiled standalone with `kcc`. Used "here and
   there" for portable, C-free components. A full Krypton-native terminal is a
   separate future project.
@@ -15,17 +15,17 @@ in the C++ tree is needed to compile these.
 
 | File | What it is | Status |
 |------|------------|--------|
-| `terk_ansi.k` | ANSI/VT escape-sequence parser, ported 1:1 from `src/parser/AnsiParser.cpp`. Pure logic, no syscalls. | ✅ builds + self-test passes |
-| `kryofetch.k` | neofetch-style system-info command (Krypton crystal logo + ANSI colour), reads real Linux info via `exec()`/`/proc`. A terk built-in. The repo's static `krypton/kryofetch` was a Windows sample; this is the working Linux one. | ✅ runs |
-| `terk_prompt.k` | native shell prompt: user@host, `~`-shortened cwd, git branch + dirty `*`, exit-status-coloured `❯`, and an OSC 133 prompt-start marker (lights up terk's command-block UI). | ✅ runs |
+| `brain_ansi.k` | ANSI/VT escape-sequence parser, ported 1:1 from `src/parser/AnsiParser.cpp`. Pure logic, no syscalls. | ✅ builds + self-test passes |
+| `kryofetch.k` | neofetch-style system-info command (Krypton crystal logo + ANSI colour), reads real Linux info via `exec()`/`/proc`. A brain built-in. The repo's static `krypton/kryofetch` was a Windows sample; this is the working Linux one. | ✅ runs |
+| `brain_prompt.k` | native shell prompt: user@host, `~`-shortened cwd, git branch + dirty `*`, exit-status-coloured `❯`, and an OSC 133 prompt-start marker (lights up brain's command-block UI). | ✅ runs |
 
 Run them:
 
 ```sh
-kcc -r terk_ansi.k                 # parser self-test
+kcc -r brain_ansi.k                 # parser self-test
 kcc -r kryofetch.k                 # system info
-kcc -o terk_prompt terk_prompt.k   # compile the prompt, then:
-#   bash: PS1='$(terk_prompt $?)'  ($? passes the last exit code as arg 0)
+kcc -o brain_prompt brain_prompt.k   # compile the prompt, then:
+#   bash: PS1='$(brain_prompt $?)'  ($? passes the last exit code as arg 0)
 ```
 
 Notes on Krypton's Linux shell surface (learned building these):

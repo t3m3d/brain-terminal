@@ -1,17 +1,17 @@
-# terk — Krypton port
+# brain — Krypton port
 
 Pure-Krypton Windows command runner (mini-terminal).
 
 Compared to the C++ scaffold in the parent directory:
 - No Qt. Native Win32 window via Krypton's `stdlib/gui.k`.
-- No clang/MSVC. Native PE/COFF build via `kcc -o terk.exe main.k`.
+- No clang/MSVC. Native PE/COFF build via `kcc -o brain.exe main.k`.
 - No C runtime — direct kernel32 IAT calls.
 
 ## v0.5 (this build) — what works
 
 - Win32 window with dark RichEdit (monospace, Consolas 11pt).
 - Single-line input + Send button + Quit button.
-- Each Send spawns `cmd /c "<line> > C:/tmp/terk_out.txt 2>&1"`, waits for
+- Each Send spawns `cmd /c "<line> > C:/tmp/brain_out.txt 2>&1"`, waits for
   it to finish, and appends the captured output to the RichEdit. Plain
   CreateProcessA, no pipes — cmd inherits the parent's console.
 - Echoes your command into the RichEdit (`> dir`) so the transcript
@@ -66,7 +66,7 @@ marshalling table coverage:
 
 `stdlib/gui.k` — `_guiColorRefFromHex` rewritten in arithmetic to dodge
 the bitShr/bitAnd string-operand codegen bug; `guiRichSetBg` now works
-again. Whole-Krypton benefit, not terk-specific.
+again. Whole-Krypton benefit, not brain-specific.
 
 ## v0.5 — Krypton bugs surfaced
 
@@ -91,7 +91,7 @@ above).
 build.bat
 ```
 
-Produces `terk.exe` (~200 KB).
+Produces `brain.exe` (~200 KB).
 
 ## File layout
 
@@ -127,11 +127,11 @@ script always passes `run.k` to kcc.
         │
         │ guiGetText → "dir"
         ▼
-   cmd /c "dir > C:/tmp/terk_out.txt 2>&1"
+   cmd /c "dir > C:/tmp/brain_out.txt 2>&1"
         │
         │ WaitForSingleObject
         ▼
-   readFile("C:/tmp/terk_out.txt")
+   readFile("C:/tmp/brain_out.txt")
         │
         ▼
    guiRichAppend(rich, content, fg, bg)

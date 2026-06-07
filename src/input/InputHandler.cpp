@@ -1,6 +1,6 @@
-#include "kterm/input/InputHandler.hpp"
+#include "brain/input/InputHandler.hpp"
 
-using namespace kterm::input;
+using namespace brain::input;
 
 std::string InputHandler::translateToEscape(int key, Modifier) {
     switch (key) {
