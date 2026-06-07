@@ -257,3 +257,102 @@ void Grid::clampCursor() {
 const std::vector<std::vector<Cell>>& Grid::rows() const {
     return m_cells;
 }
+
+// CSI 1J — erase from start of screen to cursor (inclusive).
+void Grid::eraseToScreenStart() {
+    for (int r = 0; r < m_cursorRow && r < m_rows; ++r)
+        m_cells[r].assign(m_cols, Cell());
+    if (m_cursorRow >= 0 && m_cursorRow < m_rows) {
+        for (int c = 0; c <= m_cursorCol && c < m_cols; ++c)
+            m_cells[m_cursorRow][c] = Cell();
+    }
+    m_generation++;
+}
+
+// CSI 1K — erase from start of line to cursor (inclusive).
+void Grid::eraseToLineStart() {
+    if (m_cursorRow < 0 || m_cursorRow >= m_rows) return;
+    for (int c = 0; c <= m_cursorCol && c < m_cols; ++c)
+        m_cells[m_cursorRow][c] = Cell();
+    m_generation++;
+}
+
+// CSI L (n) — insert n blank rows AT the cursor row. Rows at cursor and
+// below shift down; the bottom n rows fall off (they do NOT enter the
+// scrollback history — historic behaviour for IL).
+void Grid::insertLines(int count) {
+    if (count <= 0 || m_cursorRow < 0 || m_cursorRow >= m_rows) return;
+    int n = std::min(count, m_rows - m_cursorRow);
+    for (int r = m_rows - 1; r >= m_cursorRow + n; --r)
+        m_cells[r] = m_cells[r - n];
+    for (int r = m_cursorRow; r < m_cursorRow + n; ++r)
+        m_cells[r].assign(m_cols, Cell());
+    m_generation++;
+}
+
+// CSI M (n) — delete n rows starting at the cursor row. Following rows
+// pull up; the bottom n rows become blank. Counterpart of IL above.
+void Grid::deleteLines(int count) {
+    if (count <= 0 || m_cursorRow < 0 || m_cursorRow >= m_rows) return;
+    int n = std::min(count, m_rows - m_cursorRow);
+    for (int r = m_cursorRow; r < m_rows - n; ++r)
+        m_cells[r] = m_cells[r + n];
+    for (int r = m_rows - n; r < m_rows; ++r)
+        m_cells[r].assign(m_cols, Cell());
+    m_generation++;
+}
+
+void Grid::insertChars(int count) {
+    if (count <= 0 || m_cursorRow < 0 || m_cursorRow >= m_rows) return;
+    auto& row = m_cells[m_cursorRow];
+    int n = std::min(count, m_cols - m_cursorCol);
+    for (int c = m_cols - 1; c >= m_cursorCol + n; --c) row[c] = row[c - n];
+    for (int c = m_cursorCol; c < m_cursorCol + n; ++c) row[c] = Cell();
+    m_generation++;
+}
+
+void Grid::deleteChars(int count) {
+    if (count <= 0 || m_cursorRow < 0 || m_cursorRow >= m_rows) return;
+    auto& row = m_cells[m_cursorRow];
+    int n = std::min(count, m_cols - m_cursorCol);
+    for (int c = m_cursorCol; c < m_cols - n; ++c) row[c] = row[c + n];
+    for (int c = m_cols - n; c < m_cols; ++c) row[c] = Cell();
+    m_generation++;
+}
+
+void Grid::eraseChars(int count) {
+    if (count <= 0 || m_cursorRow < 0 || m_cursorRow >= m_rows) return;
+    auto& row = m_cells[m_cursorRow];
+    int end = std::min(m_cursorCol + count, m_cols);
+    for (int c = m_cursorCol; c < end; ++c) row[c] = Cell();
+    m_generation++;
+}
+
+Grid::Snapshot Grid::snapshot() const {
+    Snapshot s;
+    s.cells = m_cells;
+    s.cursorRow = m_cursorRow;
+    s.cursorCol = m_cursorCol;
+    s.currentAttrs = m_currentAttrs;
+    s.currentFG = m_currentFG;
+    s.currentBG = m_currentBG;
+    return s;
+}
+
+void Grid::restore(const Snapshot& s) {
+    // Restore is for the altscreen exit path. We trust the snapshot to
+    // have been taken at the current size; if the user resized while in
+    // altscreen, fall back to clearing rather than crashing.
+    if ((int)s.cells.size() != m_rows ||
+        (s.cells.empty() ? 0 : (int)s.cells[0].size()) != m_cols) {
+        clear();
+        return;
+    }
+    m_cells = s.cells;
+    m_cursorRow = s.cursorRow;
+    m_cursorCol = s.cursorCol;
+    m_currentAttrs = s.currentAttrs;
+    m_currentFG    = s.currentFG;
+    m_currentBG    = s.currentBG;
+    m_generation++;
+}

@@ -43,6 +43,26 @@ enum class EscapeType {
     // OSC string (ESC ] ... BEL/ST); payload in .osc (e.g. "133;A", "0;title").
     OSC,
 
+    // Single-byte ESC sequences (ESC 7 / ESC 8).
+    SaveCursor,        // DECSC: ESC 7  AND  CSI s
+    RestoreCursor,     // DECRC: ESC 8  AND  CSI u
+
+    // CSI r: set top/bottom scroll region. .row = top, .col = bottom (1-based).
+    SetScrollRegion,
+
+    // CSI J 1: erase from start to cursor.
+    EraseInDisplayStart,
+    // CSI K 1: erase from start of line to cursor.
+    EraseInLineStart,
+
+    // CSI L / CSI M: insert/delete lines at cursor (vim, less). .value = count.
+    InsertLines,
+    DeleteLines,
+    // CSI @ / CSI P / CSI X: insert blank / delete / erase chars in line.
+    InsertChars,
+    DeleteChars,
+    EraseChars,
+
     Unknown
 };
 

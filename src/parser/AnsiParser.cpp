@@ -63,6 +63,25 @@ void AnsiParser::feed(
             continue;
         }
 
+        // Single-byte ESC dispatches (DECSC / DECRC). The pattern is ESC X
+        // for X in {7,8,c,D,E,M,...}; we only handle the cursor-save pair
+        // for now. Everything else (charset designators, single-shifts) is
+        // dropped silently.
+        if (m_buffer[pos + 1] == '7') {
+            EscapeSequence esc;
+            esc.type = EscapeType::SaveCursor;
+            onEscape(esc);
+            pos += 2;
+            continue;
+        }
+        if (m_buffer[pos + 1] == '8') {
+            EscapeSequence esc;
+            esc.type = EscapeType::RestoreCursor;
+            onEscape(esc);
+            pos += 2;
+            continue;
+        }
+
         if (m_buffer[pos + 1] != '[') {
             pos += 2;
             continue;
@@ -158,6 +177,30 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
         // Default 0 is not a full clear; shells emit ESC[J / ESC[K constantly.
         case 'J': esc.type = EscapeType::ClearScreen; esc.value = p(0, 0); break;
         case 'K': esc.type = EscapeType::ClearLine;   esc.value = p(0, 0); break;
+
+        // DECSTBM scroll region. We accept the params but the Terminal
+        // implementation can choose to ignore them — most TUIs (vim/less)
+        // work fine without explicit scroll region as long as cursor
+        // positioning is honoured.
+        case 'r':
+            esc.type = EscapeType::SetScrollRegion;
+            esc.row  = p(0, 1);
+            esc.col  = p(1, 0);   // 0 = unset / bottom of screen
+            break;
+
+        // SCP/RCP (ANSI Save/Restore Cursor Position). DEC equivalent is
+        // ESC 7 / ESC 8 handled above; these are the CSI variants Vim
+        // and modern shells often emit.
+        case 's': esc.type = EscapeType::SaveCursor;    break;
+        case 'u': esc.type = EscapeType::RestoreCursor; break;
+
+        // Insert / delete lines (vim repaint, less paging).
+        case 'L': esc.type = EscapeType::InsertLines; esc.value = p(0, 1); break;
+        case 'M': esc.type = EscapeType::DeleteLines; esc.value = p(0, 1); break;
+        // Insert blank / delete / erase chars.
+        case '@': esc.type = EscapeType::InsertChars; esc.value = p(0, 1); break;
+        case 'P': esc.type = EscapeType::DeleteChars; esc.value = p(0, 1); break;
+        case 'X': esc.type = EscapeType::EraseChars;  esc.value = p(0, 1); break;
 
         // SGR (colors, attributes)
         case 'm': {

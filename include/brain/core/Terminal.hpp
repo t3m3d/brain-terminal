@@ -25,6 +25,19 @@ public:
     // Renderer calls this so Terminal can request repaints
     void setRenderCallback(RenderCallback cb) { m_renderCallback = std::move(cb); }
 
+    using TitleCallback = std::function<void(const std::string&)>;
+    using BellCallback  = std::function<void()>;
+    void setTitleCallback(TitleCallback cb) { m_titleCallback = std::move(cb); }
+    void setBellCallback (BellCallback  cb) { m_bellCallback  = std::move(cb); }
+
+    // Alternate screen buffer flag — true while the child is in altscreen
+    // (vim, less, htop…). Exposed so the widget can suppress scrollback
+    // rendering and block wheel-scroll while the altscreen is active.
+    bool altScreen() const { return m_altScreen; }
+
+    // Most-recent window title set by the child (OSC 0 / OSC 2).
+    const std::string& title() const { return m_title; }
+
     // Terminal modes (DEC private) for the frontend.
     bool bracketedPaste() const { return m_bracketedPaste; }
     bool cursorVisible()  const { return m_cursorVisible; }
@@ -94,9 +107,27 @@ private:
     long m_lastMarkLine = -1;   // abs line of the most recent prompt-start (133;A)
 
     RenderCallback m_renderCallback;
+    TitleCallback  m_titleCallback;
+    BellCallback   m_bellCallback;
+
+    // Alternate screen buffer support. We snapshot the entire main grid
+    // (cells + cursor + attrs) on enter, and restore it on exit. Avoids
+    // wiring a true dual-grid into renderer::Grid for now.
+    bool m_altScreen = false;
+    std::vector<std::vector<renderer::Cell>> m_savedRows;
+    int  m_savedCursorRow = 0;
+    int  m_savedCursorCol = 0;
+    std::string m_title;
+
+    // DEC save/restore cursor (DECSC / DECRC).
+    int m_decscRow = 0;
+    int m_decscCol = 0;
+    bool m_decscValid = false;
 
     void handleText(const std::string& text);
     void applyEscape(const parser::EscapeSequence& seq);
+    void enterAltScreen();
+    void exitAltScreen();
 };
 
 } // namespace brain::core

@@ -35,9 +35,16 @@ TerminalWidget::TerminalWidget(const brain::Config& config, QWidget* parent)
 }
 
 void TerminalWidget::hookTerminalSignals() {
-    // No Qt signals on core::Terminal yet — the render callback above is
-    // sufficient. This stub stays so future title/bell wiring has a place
-    // to live without touching the constructor.
+    m_terminal.setTitleCallback([this](const std::string& t) {
+        emit titleChanged(QString::fromStdString(t));
+    });
+    m_terminal.setBellCallback([this]() {
+        emit bellRang();
+        // Visual flash: invert the widget for one paint cycle. We don't
+        // hold a flag because the renderer doesn't need one — instead
+        // the window can listen for bellRang() and flash the chrome.
+        update();
+    });
 }
 
 // ---------------------------------------------------------------------------

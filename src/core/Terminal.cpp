@@ -77,9 +77,45 @@ void Terminal::handleText(const std::string& text) {
             else if (cp > 0x10FFFF)              bad = true;
         }
         if (bad) cp = 0xFFFD;
+        // Bell (0x07) outside an OSC payload — the parser routes OSC bytes
+        // separately, so anything reaching us here is a stand-alone BEL.
+        // Fire the visual/audible bell callback and skip writing it to the
+        // grid (Grid would drop it as a control char anyway).
+        if (cp == 0x07) {
+            if (m_bellCallback) m_bellCallback();
+            i += len;
+            continue;
+        }
         m_grid.putCodepoint(cp);
         i += len;
     }
+}
+
+void Terminal::enterAltScreen() {
+    if (m_altScreen) return;
+    // Snapshot the live grid (so the main buffer can return intact when
+    // vim/less exit) and blank the visible cells for the altscreen child.
+    auto snap = m_grid.snapshot();
+    m_savedRows.clear();
+    m_savedRows.swap(snap.cells);   // we only need cells + cursor here
+    m_savedCursorRow = snap.cursorRow;
+    m_savedCursorCol = snap.cursorCol;
+    m_grid.clear();
+    m_grid.setCursor(0, 0);
+    m_altScreen = true;
+}
+
+void Terminal::exitAltScreen() {
+    if (!m_altScreen) return;
+    if (!m_savedRows.empty()) {
+        renderer::Grid::Snapshot s;
+        s.cells = std::move(m_savedRows);
+        s.cursorRow = m_savedCursorRow;
+        s.cursorCol = m_savedCursorCol;
+        m_grid.restore(s);
+    }
+    m_savedRows.clear();
+    m_altScreen = false;
 }
 
 void Terminal::applyEscape(const parser::EscapeSequence& seq) {
@@ -110,24 +146,45 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
         }
 
         case EscapeType::ClearScreen:
-            // ESC[J: only 2/3 clear the whole screen. 0 (the one shells emit on
-            // every prompt redraw) erases cursor -> end of screen, not all.
+            // ESC[J: 0/none = cursor->end, 1 = start->cursor, 2/3 = all.
             if (seq.value >= 2) {
                 m_grid.clear();
                 m_grid.setCursor(0, 0);
+            } else if (seq.value == 1) {
+                m_grid.eraseToScreenStart();
             } else {
                 m_grid.eraseToScreenEnd();
             }
             break;
 
         case EscapeType::ClearLine:
-            // ESC[K: 2 = whole line; otherwise cursor -> end of line. Uses the
-            // grid's real cursor, not Terminal's stale m_cursorRow.
-            if (seq.value >= 2) {
-                m_grid.clearLine(m_grid.cursorRow());
-            } else {
-                m_grid.eraseToLineEnd();
-            }
+            // ESC[K: 0/none = cursor->end, 1 = start->cursor, 2 = whole row.
+            if (seq.value >= 2)      m_grid.clearLine(m_grid.cursorRow());
+            else if (seq.value == 1) m_grid.eraseToLineStart();
+            else                     m_grid.eraseToLineEnd();
+            break;
+
+        case EscapeType::InsertLines: m_grid.insertLines(seq.value); break;
+        case EscapeType::DeleteLines: m_grid.deleteLines(seq.value); break;
+        case EscapeType::InsertChars: m_grid.insertChars(seq.value); break;
+        case EscapeType::DeleteChars: m_grid.deleteChars(seq.value); break;
+        case EscapeType::EraseChars:  m_grid.eraseChars (seq.value); break;
+
+        case EscapeType::SaveCursor:
+            m_decscRow = m_grid.cursorRow();
+            m_decscCol = m_grid.cursorCol();
+            m_decscValid = true;
+            break;
+
+        case EscapeType::RestoreCursor:
+            if (m_decscValid) m_grid.setCursor(m_decscRow, m_decscCol);
+            break;
+
+        case EscapeType::SetScrollRegion:
+            // Acknowledged; the grid scrolls the full screen for now (most
+            // TUIs that use DECSTBM also use cursor positioning to
+            // redraw, so visually they still work). Wiring real scroll
+            // regions is a TODO.
             break;
 
         case EscapeType::SetFGColor:
@@ -162,8 +219,43 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
         case EscapeType::ResetMode: {
             bool on = (seq.type == EscapeType::SetMode);
             if (seq.privateMode) {
-                if (seq.value == 2004)     m_bracketedPaste = on;   // bracketed paste
-                else if (seq.value == 25)  m_cursorVisible  = on;   // cursor show/hide
+                switch (seq.value) {
+                    case 25:   m_cursorVisible  = on; break;
+                    case 2004: m_bracketedPaste = on; break;
+
+                    // Alternate screen buffer variants. 1049 also saves /
+                    // restores the cursor and clears the alt buffer on
+                    // entry, which is what xterm does and what vim/less
+                    // expect. We collapse 47/1047/1049 to the same path —
+                    // good-enough behaviour for the apps in the wild.
+                    case 47:
+                    case 1047:
+                    case 1049:
+                        if (on) {
+                            if (seq.value == 1049) {
+                                m_decscRow = m_grid.cursorRow();
+                                m_decscCol = m_grid.cursorCol();
+                                m_decscValid = true;
+                            }
+                            enterAltScreen();
+                        } else {
+                            exitAltScreen();
+                            if (seq.value == 1049 && m_decscValid)
+                                m_grid.setCursor(m_decscRow, m_decscCol);
+                        }
+                        break;
+
+                    // DECSC/DECRC alias.
+                    case 1048:
+                        if (on) {
+                            m_decscRow = m_grid.cursorRow();
+                            m_decscCol = m_grid.cursorCol();
+                            m_decscValid = true;
+                        } else if (m_decscValid) {
+                            m_grid.setCursor(m_decscRow, m_decscCol);
+                        }
+                        break;
+                }
             }
             break;
         }
@@ -200,8 +292,22 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
         }
 
         case EscapeType::OSC: {
-            // OSC 133 shell integration (FinalTerm): A=prompt start, D[;code]=cmd done.
             const std::string& s = seq.osc;
+
+            // OSC 0 / OSC 1 / OSC 2 — set window/icon title.
+            //   0;text  set both icon and window title
+            //   1;text  set icon title only
+            //   2;text  set window title only
+            // We treat all three as "the window title", which is what
+            // every modern terminal does for OSC 0/2 and a reasonable
+            // fallback for OSC 1.
+            if (s.size() >= 2 && (s[0] == '0' || s[0] == '1' || s[0] == '2') && s[1] == ';') {
+                m_title = s.substr(2);
+                if (m_titleCallback) m_titleCallback(m_title);
+                break;
+            }
+
+            // OSC 133 shell integration (FinalTerm): A=prompt start, D[;code]=cmd done.
             if (s.rfind("133;", 0) == 0 && s.size() >= 5) {
                 char kind = s[4];
                 if (kind == 'A') {

@@ -12,8 +12,31 @@ public:
     void resize(int cols, int rows);
     void clear();
     void clearLine(int row);
-    void eraseToLineEnd();   // erase from cursor column to end of current row
-    void eraseToScreenEnd(); // erase from cursor to end of screen
+    void eraseToLineEnd();     // erase from cursor column to end of current row
+    void eraseToScreenEnd();   // erase from cursor to end of screen
+    void eraseToLineStart();   // erase from start of line to cursor
+    void eraseToScreenStart(); // erase from top of screen to cursor
+
+    // CSI L / CSI M / CSI @ / CSI P / CSI X — vim/less repaint primitives.
+    void insertLines(int count);   // at cursor row, push following rows down
+    void deleteLines(int count);   // at cursor row, pull following rows up
+    void insertChars(int count);   // at cursor pos, shift right
+    void deleteChars(int count);   // at cursor pos, shift left
+    void eraseChars(int count);    // overwrite N cells with blanks, no shift
+
+    // Whole-grid snapshot. Used for the alternate screen buffer (snapshot
+    // before vim enters; restore on exit). NOT scrollback — history is
+    // intentionally NOT touched here.
+    struct Snapshot {
+        std::vector<std::vector<Cell>> cells;
+        int cursorRow = 0;
+        int cursorCol = 0;
+        uint8_t  currentAttrs = 0;
+        uint32_t currentFG    = 0;
+        uint32_t currentBG    = 0;
+    };
+    Snapshot snapshot() const;
+    void restore(const Snapshot& s);
 
     void putChar(char c);
     void putCodepoint(uint32_t cp);   // place a Unicode codepoint at the cursor
