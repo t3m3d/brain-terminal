@@ -9,6 +9,7 @@ using namespace brain::parser;
 // without a cap m_buffer grows without bound -> memory-exhaustion DoS. 64 KiB
 // is far larger than any real OSC/CSI, so legitimate sequences are unaffected.
 static constexpr size_t kMaxEscPending = 1u << 16;
+static constexpr size_t kMaxDcsPending = 1u << 24;   // Sixel payloads run large
 
 AnsiParser::AnsiParser(int, int) {}
 
@@ -57,6 +58,28 @@ void AnsiParser::feed(
             }
             EscapeSequence esc;
             esc.type = EscapeType::OSC;
+            esc.osc  = m_buffer.substr(pos + 2, i - (pos + 2));
+            onEscape(esc);
+            pos = i + termLen;
+            continue;
+        }
+
+        // DCS: ESC P <payload> ST. Terminated by ST (ESC '\' or 0x9C). Used for
+        // Sixel graphics, whose payloads run large — allow more than a CSI/OSC.
+        if (m_buffer[pos + 1] == 'P') {
+            size_t i = pos + 2; size_t termLen = 0;
+            while (i < m_buffer.size()) {
+                unsigned char ch = static_cast<unsigned char>(m_buffer[i]);
+                if (ch == 0x9C) { termLen = 1; break; }                                  // ST (8-bit)
+                if (ch == 0x1b && i + 1 < m_buffer.size() && m_buffer[i+1] == '\\') { termLen = 2; break; }  // 7-bit ST
+                i++;
+            }
+            if (i >= m_buffer.size()) {          // terminator not arrived yet
+                if (m_buffer.size() - pos > kMaxDcsPending) pos = m_buffer.size();
+                break;
+            }
+            EscapeSequence esc;
+            esc.type = EscapeType::DCS;
             esc.osc  = m_buffer.substr(pos + 2, i - (pos + 2));
             onEscape(esc);
             pos = i + termLen;

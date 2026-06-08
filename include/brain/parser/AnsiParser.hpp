@@ -46,6 +46,9 @@ enum class EscapeType {
     // OSC string (ESC ] ... BEL/ST); payload in .osc (e.g. "133;A", "0;title").
     OSC,
 
+    // DCS string (ESC P ... ST); payload in .osc. Used for Sixel graphics.
+    DCS,
+
     // Single-byte ESC sequences (ESC 7 / ESC 8).
     SaveCursor,        // DECSC: ESC 7  AND  CSI s
     RestoreCursor,     // DECRC: ESC 8  AND  CSI u

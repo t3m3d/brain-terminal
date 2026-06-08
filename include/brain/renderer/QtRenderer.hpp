@@ -3,7 +3,9 @@
 #include <QColor>
 #include <string>
 #include <array>
+#include <vector>
 #include "brain/renderer/Grid.hpp"
+#include "brain/renderer/TermImage.hpp"
 
 class QPainter;
 
@@ -31,7 +33,8 @@ public:
         const long long* selFocusAbsRow,
         const int*       selFocusCol,
         bool focused,
-        bool cursorVisible);
+        bool cursorVisible,
+        const std::vector<TermImage>* images = nullptr);
 
     void resize(int cols, int rows);
     void loadTheme(const std::string& path);

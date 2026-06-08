@@ -139,6 +139,7 @@ if (BUILD_TESTING)
     add_executable(test_winop
         ${PROJECT_SOURCE_DIR}/tests/test_winop.cpp
         ${PROJECT_SOURCE_DIR}/src/core/Terminal.cpp
+        ${PROJECT_SOURCE_DIR}/src/core/Sixel.cpp
         ${PROJECT_SOURCE_DIR}/src/parser/AnsiParser.cpp
         ${PROJECT_SOURCE_DIR}/src/renderer/Grid.cpp
     )

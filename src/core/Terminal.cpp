@@ -1,4 +1,5 @@
 #include "brain/core/Terminal.hpp"
+#include "brain/core/Sixel.hpp"
 #include <algorithm>
 #include <cstdio>
 
@@ -441,9 +442,43 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
             break;
         }
 
+        case EscapeType::DCS: {
+            // Sixel graphics: decode and anchor an inline image at the cursor.
+            SixelImage img = decodeSixel(seq.osc);
+            if (img.w > 0 && img.h > 0)
+                placeImage(img.w, img.h, std::move(img.argb));
+            break;
+        }
+
         default:
             break;
     }
+}
+
+void Terminal::placeImage(int wpx, int hpx, std::vector<uint32_t>&& argb) {
+    renderer::TermImage im;
+    im.anchorAbs = (long long)m_grid.absScroll() + m_grid.cursorRow();
+    im.col  = m_grid.cursorCol();
+    im.wpx  = wpx;
+    im.hpx  = hpx;
+    im.argb = std::move(argb);
+    m_images.push_back(std::move(im));
+
+    // Advance the cursor below the image (Sixel scrolling), scrolling the grid
+    // as needed — feeding newlines reuses the grid's scroll/scrollback path.
+    int rows = (m_cellPxH > 0) ? (hpx + m_cellPxH - 1) / m_cellPxH : 1;
+    for (int i = 0; i < rows; ++i)
+        m_grid.putCodepoint('\n');
+
+    // Bound memory: drop images scrolled past the scrollback, and cap the count.
+    long long oldest = (long long)m_grid.absScroll()
+                     - m_grid.historyLines() - m_grid.rowCount();
+    m_images.erase(std::remove_if(m_images.begin(), m_images.end(),
+                   [&](const renderer::TermImage& g){ return g.anchorAbs < oldest; }),
+                   m_images.end());
+    const size_t kMaxImages = 128;
+    if (m_images.size() > kMaxImages)
+        m_images.erase(m_images.begin(), m_images.end() - kMaxImages);
 }
 
 std::string Terminal::mouseReport(int button, int col, int row, bool press,

@@ -244,7 +244,8 @@ void TerminalWidget::paintEvent(QPaintEvent*) {
             m_hasSelection ? &m_selFocus.absRow  : nullptr,
             m_hasSelection ? &m_selFocus.col     : nullptr,
             m_focused,
-            m_terminal.cursorVisible());
+            m_terminal.cursorVisible(),
+            &m_terminal.images());
     }
 }
 

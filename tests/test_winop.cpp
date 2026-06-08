@@ -70,8 +70,19 @@ int main() {
     std::cout << "Wide CJK occupies 2 cols (一X -> [0]=U+4E00 [1]=spacer [2]=X): "
               << (okWide ? "yes" : "NO") << "\n";
 
+    // Sixel: a DCS image registers an inline image and moves the cursor below it.
+    Terminal t8(40, 12);
+    t8.setCellPixels(10, 20);
+    auto feed8 = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t8.onPTYOutput(v); };
+    // 2 colours, a couple of bands of solid sixels: "#0;2;100;0;0" red, "@@@" etc.
+    feed8("\x1bP0;0;8q\"1;1;6;12#0;2;100;0;0~~~~~~$-~~~~~~\x1b\\");
+    bool okSixel = (t8.images().size() == 1) && (t8.images()[0].wpx == 6) && (t8.images()[0].hpx == 12);
+    std::cout << "Sixel DCS -> 1 image " << (t8.images().empty() ? "(none)" :
+                 (std::to_string(t8.images()[0].wpx) + "x" + std::to_string(t8.images()[0].hpx)))
+              << ": " << (okSixel ? "yes" : "NO") << "\n";
+
     bool all = ok18 && ok14 && okCHA && okCursor && okStrike && okDim
-            && okClip && okCwd && okWide;
+            && okClip && okCwd && okWide && okSixel;
     std::cout << (all ? "PASS\n" : "FAIL\n");
     return all ? 0 : 1;
 }

@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 #include "brain/renderer/Grid.hpp"
+#include "brain/renderer/TermImage.hpp"
 #include "brain/parser/AnsiParser.hpp"
 
 namespace brain::core {
@@ -40,6 +41,10 @@ public:
 
     // Most-recent working directory reported by the shell via OSC 7, or empty.
     const std::string& cwd() const { return m_cwd; }
+
+    // Inline images (Sixel), anchored to absolute lines so they scroll with
+    // the text. The renderer blits these after the cell grid.
+    const std::vector<renderer::TermImage>& images() const { return m_images; }
 
     // Cell size in pixels, so CSI 14t (report size in pixels) can be answered.
     void setCellPixels(int w, int h) { m_cellPxW = w; m_cellPxH = h; }
@@ -156,6 +161,8 @@ private:
     CursorStyleCallback m_cursorStyleCallback;
     ClipboardCallback   m_clipboardCallback;
     std::string m_cwd;   // OSC 7 reported working directory
+    std::vector<renderer::TermImage> m_images;   // Sixel inline images
+    void placeImage(int wpx, int hpx, std::vector<uint32_t>&& argb);
     int m_cellPxW = 8;    // cell pixel size, for CSI 14t replies
     int m_cellPxH = 16;
 

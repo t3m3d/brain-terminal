@@ -6,6 +6,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QImage>
 #include <algorithm>
 #include <utility>
 
@@ -71,7 +72,8 @@ void QtRenderer::renderWithView(
     const long long* selFocusAbsRow,
     const int*       selFocusCol,
     bool focused,
-    bool cursorVisible)
+    bool cursorVisible,
+    const std::vector<TermImage>* images)
 {
     painter.setFont(m_font);
 
@@ -183,6 +185,23 @@ void QtRenderer::renderWithView(
                 if (uy > y + m_cellHeight - 1) uy = y + m_cellHeight - 1;
                 painter.drawLine(x, uy, x + m_cellWidth, uy);
             }
+        }
+    }
+
+    // Inline images (Sixel): blit anchored bitmaps that intersect the viewport,
+    // mapped through the same abs->screen-row math as the cells.
+    if (images && !images->empty()) {
+        const int winH = painter.window().height();
+        for (const auto& im : *images) {
+            if (im.wpx <= 0 || im.hpx <= 0 || (int)im.argb.size() < im.wpx * im.hpx)
+                continue;
+            long long screenRow = im.anchorAbs - topAbs;
+            int y = m_padY + (int)screenRow * m_cellHeight;
+            int x = m_padX + im.col * m_cellWidth;
+            if (y + im.hpx <= 0 || y >= winH) continue;   // fully off-screen
+            QImage qi(reinterpret_cast<const uchar*>(im.argb.data()),
+                      im.wpx, im.hpx, im.wpx * 4, QImage::Format_ARGB32);
+            painter.drawImage(QPoint(x, y), qi);
         }
     }
 
