@@ -36,6 +36,15 @@ public:
     void resize(int cols, int rows);
     void loadTheme(const std::string& path);
 
+    // The theme's 16-colour ANSI palette, if it declared one. Returns false
+    // for a slot the theme left unset (the grid keeps its built-in colour).
+    // out is 0xAARRGGBB. The widget applies these to the Grid after loadTheme.
+    bool themePaletteColor(int i, uint32_t& out) const {
+        if (i < 0 || i >= 16 || !m_themePaletteSet[i]) return false;
+        out = m_themePalette[i];
+        return true;
+    }
+
     // Appearance, driven by config.
     void setDefaultFg(QColor c)        { m_defaultFg = c; }
     void setDefaultBg(QColor c)        { m_defaultBg = c; }
@@ -65,6 +74,8 @@ private:
     std::string m_cursorStyle = "block";   // block | bar | underline
     int m_padX = 0, m_padY = 0;            // inner padding in px
     bool m_useBold = true;                 // honour SGR 1 (bold) attribute
+    std::array<uint32_t, 16> m_themePalette{};   // theme ANSI palette (0xAARRGGBB)
+    std::array<bool, 16>     m_themePaletteSet{};
 
     void drawCell(QPainter& painter, int row, int col, const Cell& cell, bool selected);
 };

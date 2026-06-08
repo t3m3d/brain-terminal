@@ -2,10 +2,35 @@
 #include <fstream>
 #include <sstream>
 #include <cctype>
+#include <cstdlib>
+#include <vector>
 
 using namespace brain;
 
 namespace {
+
+// Resolve the `theme` value. A path (contains '/' or ends in .json) is used
+// as-is; a bare name like "gruvbox-dark" is resolved to a bundled theme JSON,
+// searching the user dir then the dev tree then the install prefix.
+static std::string resolveThemePath(const std::string& v) {
+    if (v.empty()) return v;
+    bool looksLikePath = v.find('/') != std::string::npos
+                      || (v.size() > 5 && v.substr(v.size() - 5) == ".json");
+    if (looksLikePath) return v;
+
+    std::vector<std::string> dirs;
+    if (const char* home = std::getenv("HOME"))
+        dirs.push_back(std::string(home) + "/.config/brain/themes/");
+    dirs.push_back("resources/themes/");
+    dirs.push_back("/usr/share/brain/themes/");
+    dirs.push_back("/usr/local/share/brain/themes/");
+    for (const std::string& d : dirs) {
+        std::string p = d + v + ".json";
+        std::ifstream f(p);
+        if (f.good()) return p;
+    }
+    return "resources/themes/" + v + ".json";
+}
 
 // Parse a hex colour "#rrggbb" / "#aarrggbb" (also without '#') into
 // 0xAARRGGBB. 6-digit forms get an opaque alpha. Returns 0 (= unset) on junk.
@@ -144,7 +169,7 @@ Config Config::load(const std::string& path) {
         val = unquote(val);
 
         if      (key == "shell")           c.m_shell           = val;
-        else if (key == "theme")           c.m_themePath       = val;
+        else if (key == "theme")           c.m_themePath       = resolveThemePath(val);
         else if (key == "font_family")     c.m_fontFamily      = val;
         else if (key == "font_size")       c.m_fontSize        = to_int(val, c.m_fontSize);
         else if (key == "font_weight")     c.m_fontWeight      = val;

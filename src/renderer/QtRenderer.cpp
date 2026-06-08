@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <algorithm>
 #include <utility>
 
@@ -33,6 +34,15 @@ void QtRenderer::loadTheme(const std::string& path) {
     if (obj.contains("background"))   m_defaultBg = QColor(obj["background"].toString());
     if (obj.contains("selection_bg")) m_selBg     = QColor(obj["selection_bg"].toString());
     if (obj.contains("cursor"))     { m_cursorColor = QColor(obj["cursor"].toString()); m_cursorColorSet = true; }
+
+    // Optional 16-entry ANSI palette ("palette": ["#rrggbb", ... x16]).
+    if (obj.contains("palette") && obj["palette"].isArray()) {
+        auto arr = obj["palette"].toArray();
+        for (int i = 0; i < 16 && i < arr.size(); ++i) {
+            QColor c(arr[i].toString());
+            if (c.isValid()) { m_themePalette[i] = c.rgba(); m_themePaletteSet[i] = true; }
+        }
+    }
 }
 
 // Legacy entry point — kept for tests and code that hasn't moved to

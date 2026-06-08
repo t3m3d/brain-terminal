@@ -183,8 +183,12 @@ void TerminalWidget::setupRenderer() {
             m_config.selectionBg() ? QColor::fromRgba(m_config.selectionBg()) : QColor(0x44,0x44,0x66),
             m_config.selectionFg() ? QColor::fromRgba(m_config.selectionFg()) : QColor(0xFF,0xFF,0xFF));
     }
-    for (int i = 0; i < 16; ++i)
+    // ANSI palette: the theme's palette first, then any per-key config override.
+    for (int i = 0; i < 16; ++i) {
+        uint32_t themec;
+        if (m_renderer->themePaletteColor(i, themec)) m_terminal.setPaletteColor(i, themec);
         if (m_config.paletteColor(i)) m_terminal.setPaletteColor(i, m_config.paletteColor(i));
+    }
     m_renderer->setPadding(m_config.paddingX(), m_config.paddingY());
     m_renderer->setUseBold(m_config.useBold());
 
