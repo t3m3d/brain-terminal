@@ -7,7 +7,8 @@ using namespace brain::renderer;
 Grid::Grid(int cols, int rows)
     : m_cols(cols), m_rows(rows),
       m_cursorRow(0), m_cursorCol(0),
-      m_cells(rows, std::vector<Cell>(cols))
+      m_cells(rows, std::vector<Cell>(cols)),
+      m_wrapped(rows, 0)
 {
     // Default colors
     m_currentFG = 0xFFFFFFFF; // white
@@ -55,23 +56,21 @@ void Grid::resize(int cols, int rows) {
     if (cols < 1) cols = 1;
     if (rows < 1) rows = 1;
 
-    // Preserve content across a resize (window drag, font change) rather than
-    // clearing. When rows shrink, keep the bottom of the screen where the
-    // prompt and cursor live.
+    // A width change rewraps content (reflow); a height-only change just keeps
+    // the bottom of the screen where the prompt and cursor live.
+    if (cols != m_cols) { reflow(cols, rows); return; }
+
     std::vector<std::vector<Cell>> next(rows, std::vector<Cell>(cols));
+    std::vector<uint8_t> nextWrap(rows, 0);
     int copyRows = std::min(rows, m_rows);
-    int copyCols = std::min(cols, m_cols);
     int srcStart = (m_rows > rows) ? (m_rows - rows) : 0;
     for (int r = 0; r < copyRows; ++r) {
-        const std::vector<Cell>& src = m_cells[srcStart + r];
-        for (int c = 0; c < copyCols; ++c) next[r][c] = src[c];
+        next[r] = m_cells[srcStart + r];
+        nextWrap[r] = m_wrapped[srcStart + r];
     }
     m_cells = std::move(next);
-    m_cols = cols;
+    m_wrapped = std::move(nextWrap);
     m_rows = rows;
-    // A resize implicitly resets the scroll region — vim/less re-issue
-    // DECSTBM after a SIGWINCH, so this is correct and avoids a stuck
-    // region pointing at rows that no longer exist.
     m_scrollTop = 0;
     m_scrollBottom = -1;
 
@@ -83,25 +82,137 @@ void Grid::resize(int cols, int rows) {
     m_generation++;
 }
 
+// Rewrap all content (history + visible) to a new width. Logical lines are
+// reconstructed by joining soft-wrapped rows, then split to the new width.
+void Grid::reflow(int newCols, int newRows) {
+    // 1. Reconstruct logical lines, tracking the cursor's logical line+offset.
+    std::vector<std::vector<Cell>> logical;
+    std::vector<Cell> acc;
+    long curLine = -1, curOff = 0;
+    bool started = false;
+
+    auto consume = [&](const std::vector<Cell>& cells, bool wrapped, bool isCursor, int cursorCol) {
+        int len = (int)cells.size();
+        if (!wrapped) { while (len > 0 && (cells[len-1].ch == ' ' || cells[len-1].ch == 0)) --len; }
+        if (isCursor) {
+            int off = 0;
+            for (int c = 0; c < cursorCol && c < (int)cells.size(); ++c)
+                if (cells[c].ch != 0) ++off;
+            curLine = (long)logical.size();
+            curOff  = (long)acc.size() + off;
+        }
+        for (int c = 0; c < len; ++c)
+            if (cells[c].ch != 0) acc.push_back(cells[c]);   // drop wide-spacers
+        started = true;
+        if (!wrapped) { logical.push_back(std::move(acc)); acc.clear(); started = false; }
+    };
+
+    for (size_t i = 0; i < m_history.size(); ++i)
+        consume(m_history[i], m_histWrapped[i] != 0, false, 0);
+    for (int r = 0; r < m_rows; ++r)
+        consume(m_cells[r], m_wrapped[r] != 0, r == m_cursorRow, m_cursorCol);
+    if (started) logical.push_back(std::move(acc));
+
+    // Drop trailing blank lines below the cursor — they're just empty screen
+    // space, not content, and shouldn't be rewrapped into the scrollback.
+    long lastNonEmpty = -1;
+    for (long i = 0; i < (long)logical.size(); ++i)
+        if (!logical[i].empty()) lastNonEmpty = i;
+    long keep = std::max(lastNonEmpty, curLine);
+    if (keep < 0) keep = 0;
+    if ((long)logical.size() > keep + 1) logical.resize((size_t)(keep + 1));
+
+    // 2. Re-wrap each logical line to newCols, tracking the new cursor cell.
+    std::vector<std::vector<Cell>> out;
+    std::vector<uint8_t> outWrap;
+    long newCurAbs = -1; int newCurCol = 0;
+
+    for (size_t li = 0; li < logical.size(); ++li) {
+        const std::vector<Cell>& line = logical[li];
+        int n = (int)line.size(), c = 0;
+        do {
+            std::vector<Cell> row;
+            int produced = 0;
+            while (c < n) {
+                int w = charWidth(line[c].ch); if (w < 1) w = 1;
+                if (produced + w > newCols) break;
+                if ((long)li == curLine && c == curOff && newCurAbs < 0) {
+                    newCurAbs = (long)out.size(); newCurCol = produced;
+                }
+                row.push_back(line[c]);
+                if (w == 2) { Cell sp = line[c]; sp.ch = 0; row.push_back(sp); }
+                produced += w;
+                ++c;
+            }
+            if ((long)li == curLine && curOff >= n && c >= n && newCurAbs < 0) {
+                newCurAbs = (long)out.size(); newCurCol = produced;
+            }
+            while ((int)row.size() < newCols) row.push_back(Cell());
+            bool more = (c < n);
+            out.push_back(std::move(row));
+            outWrap.push_back(more ? 1 : 0);
+        } while (c < n);
+    }
+    if (out.empty()) { out.emplace_back(newCols, Cell()); outWrap.push_back(0); }
+
+    // 3. Split into history (older) + the last newRows visible rows.
+    int total = (int)out.size();
+    int visStart = std::max(0, total - newRows);
+    m_history.clear(); m_histWrapped.clear();
+    for (int i = 0; i < visStart; ++i) {
+        m_history.push_back(std::move(out[i]));
+        m_histWrapped.push_back(outWrap[i]);
+    }
+    while ((int)m_history.size() > m_historyMax) { m_history.pop_front(); m_histWrapped.pop_front(); }
+
+    m_cells.assign(newRows, std::vector<Cell>(newCols));
+    m_wrapped.assign(newRows, 0);
+    int vis = total - visStart;
+    for (int r = 0; r < vis; ++r) {
+        m_cells[r] = std::move(out[visStart + r]);
+        m_wrapped[r] = outWrap[visStart + r];
+    }
+
+    // 4. Place the cursor, reset scroll region, re-baseline absScroll.
+    if (newCurAbs < 0) newCurAbs = total - 1;
+    m_cursorRow = (int)(newCurAbs - visStart);
+    if (m_cursorRow < 0) m_cursorRow = 0;
+    if (m_cursorRow >= newRows) m_cursorRow = newRows - 1;
+    m_cursorCol = std::min(newCurCol, newCols - 1);
+
+    m_cols = newCols;
+    m_rows = newRows;
+    m_scrollTop = 0;
+    m_scrollBottom = -1;
+    m_wrapPending = false;
+    m_absScroll = (long)m_history.size();
+    m_generation++;
+}
+
 void Grid::clear() {
     for (auto& row : m_cells)
         for (auto& cell : row)
             cell = Cell();
+    std::fill(m_wrapped.begin(), m_wrapped.end(), (uint8_t)0);
     m_generation++;
 }
 
 void Grid::clearLine(int row) {
-    if (row >= 0 && row < m_rows)
+    if (row >= 0 && row < m_rows) {
         m_cells[row].assign(m_cols, Cell());
+        m_wrapped[row] = 0;
+    }
     m_generation++;
 }
 
 // Erase from the cursor column to end of row (CSI 0K). Shells emit ESC[K to
 // clean the tail of a redrawn line; erasing the whole row would wipe the prompt.
 void Grid::eraseToLineEnd() {
-    if (m_cursorRow >= 0 && m_cursorRow < m_rows)
+    if (m_cursorRow >= 0 && m_cursorRow < m_rows) {
         for (int c = m_cursorCol; c < m_cols; ++c)
             m_cells[m_cursorRow][c] = Cell();
+        m_wrapped[m_cursorRow] = 0;   // content now ends on this row
+    }
     m_generation++;
 }
 
@@ -109,8 +220,10 @@ void Grid::eraseToLineEnd() {
 // then all rows below.
 void Grid::eraseToScreenEnd() {
     eraseToLineEnd();
-    for (int r = m_cursorRow + 1; r < m_rows; ++r)
+    for (int r = m_cursorRow + 1; r < m_rows; ++r) {
         m_cells[r].assign(m_cols, Cell());
+        m_wrapped[r] = 0;
+    }
     m_generation++;
 }
 
@@ -123,11 +236,15 @@ void Grid::scrollUp() {
     m_absScroll++;                                    // one more line off the top
     if (m_historyMax > 0) {
         m_history.push_back(m_cells[0]);              // keep the scrolled-off row
-        if ((int)m_history.size() > m_historyMax) m_history.pop_front();
+        m_histWrapped.push_back(m_wrapped.empty() ? 0 : m_wrapped[0]);
+        if ((int)m_history.size() > m_historyMax) { m_history.pop_front(); m_histWrapped.pop_front(); }
     }
-    for (int r = 0; r < m_rows - 1; ++r)
+    for (int r = 0; r < m_rows - 1; ++r) {
         m_cells[r] = m_cells[r + 1];
+        m_wrapped[r] = m_wrapped[r + 1];
+    }
     m_cells[m_rows - 1].assign(m_cols, Cell());
+    m_wrapped[m_rows - 1] = 0;
 }
 
 // Move to the next row. If the cursor reaches the BOTTOM of the active
@@ -149,8 +266,9 @@ void Grid::lineFeed() {
             scrollUp();
         } else {
             m_generation++;
-            for (int r = top; r < bot; ++r) m_cells[r] = m_cells[r + 1];
+            for (int r = top; r < bot; ++r) { m_cells[r] = m_cells[r + 1]; m_wrapped[r] = m_wrapped[r + 1]; }
             m_cells[bot].assign(m_cols, Cell());
+            m_wrapped[bot] = 0;
         }
         m_cursorRow = bot;
     }
@@ -164,6 +282,7 @@ void Grid::putCodepoint(uint32_t cp) {
     if (cp == '\n') {                // line feed -> next row, column 0
         m_cursorCol = 0;
         m_wrapPending = false;
+        if (m_cursorRow < (int)m_wrapped.size()) m_wrapped[m_cursorRow] = 0;  // hard line end
         lineFeed();
         return;
     }
@@ -191,6 +310,7 @@ void Grid::putCodepoint(uint32_t cp) {
     // there, and the wrap only happens when the next glyph arrives. Standard VT
     // behavior; without it zsh's prompt cleanup leaves a stray %.
     if (m_wrapPending) {
+        if (m_cursorRow < (int)m_wrapped.size()) m_wrapped[m_cursorRow] = 1;  // soft wrap (continues)
         m_cursorCol = 0;
         lineFeed();
         m_wrapPending = false;

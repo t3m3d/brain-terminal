@@ -338,9 +338,17 @@ void TerminalWidget::resizeEvent(QResizeEvent*) {
     if (cols < 20) cols = 20;
     if (rows < 6)  rows = 6;
 
+    int oldCols = m_terminal.grid().cols();
     m_terminal.resize(cols, rows);
     if (m_renderer) m_renderer->resize(cols, rows);
     m_pty.resize(cols, rows);
+    // A width change reflows the grid, re-numbering absolute lines — the old
+    // selection rectangle and scrollback offset no longer mean anything.
+    if (cols != oldCols) {
+        m_hasSelection = false;
+        m_selecting = false;
+        m_viewportOffset = 0;
+    }
     positionFindBar();
 }
 

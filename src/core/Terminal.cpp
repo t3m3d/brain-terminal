@@ -44,6 +44,9 @@ Terminal::Terminal(int cols, int rows)
       m_parser(cols, rows) {}
 
 void Terminal::resize(int cols, int rows) {
+    // A width change rewraps content (reflow), which re-numbers absolute lines,
+    // so inline-image anchors no longer line up — drop them.
+    if (cols != m_cols) m_images.clear();
     m_cols = cols;
     m_rows = rows;
     m_grid.resize(cols, rows);

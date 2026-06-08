@@ -127,6 +127,10 @@ private:
 
     std::vector<std::vector<Cell>> m_cells;
     std::deque<std::vector<Cell>> m_history;   // scrolled-off rows (oldest..newest)
+    // Soft-wrap flags parallel to m_cells / m_history: 1 = this row continues
+    // onto the next (auto-wrapped), 0 = hard line end. Drives reflow on resize.
+    std::vector<uint8_t> m_wrapped;
+    std::deque<uint8_t>  m_histWrapped;
     int  m_historyMax = 5000;                  // configurable cap, see setHistoryMax
     long m_absScroll = 0;                      // count of lines scrolled off the top, ever
     uint64_t m_generation = 0;                 // bumped on visible content change
@@ -141,6 +145,7 @@ private:
 
     void clampCursor();
     void lineFeed();   // advance one row, scrolling at the bottom
+    void reflow(int cols, int rows);   // rewrap content when the width changes
 };
 
 }

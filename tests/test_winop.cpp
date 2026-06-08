@@ -133,9 +133,28 @@ int main() {
     bool okOsc4 = (t14.grid().rows()[0][0].fg == 0xFFFF0000);
     std::cout << "OSC 4 palette set (red): " << (okOsc4 ? "yes" : "NO") << "\n";
 
+    // Reflow on resize: a wrapped line unwraps when widened and rewraps when
+    // narrowed, preserving the text.
+    Terminal t15(10, 4);
+    auto feedF = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t15.onPTYOutput(v); };
+    feedF("ABCDEFGHIJKLMNOP");   // 16 chars -> wraps at width 10
+    auto rowStr = [&](int r, int n) {
+        std::string s; const auto& row = t15.grid().rows()[r];
+        for (int c = 0; c < n && c < (int)row.size(); ++c) { uint32_t cp = row[c].ch; s += (cp && cp != 0) ? (char)cp : ' '; }
+        while (!s.empty() && s.back() == ' ') s.pop_back();
+        return s;
+    };
+    t15.resize(20, 4);
+    bool unwrapped = (rowStr(0, 20) == "ABCDEFGHIJKLMNOP");
+    t15.resize(8, 4);
+    bool rewrapped = (rowStr(0, 8) == "ABCDEFGH") && (rowStr(1, 8) == "IJKLMNOP");
+    bool okReflow = unwrapped && rewrapped;
+    std::cout << "Reflow widen->unwrap / narrow->rewrap: " << (okReflow ? "yes" : "NO")
+              << " [w20:'" << rowStr(0,20) << "']\n";
+
     bool all = ok18 && ok14 && okCHA && okCursor && okStrike && okDim
             && okClip && okCwd && okWide && okSixel && okDA && okUl && okUlColor && okFocus
-            && okOscQ && okOsc4;
+            && okOscQ && okOsc4 && okReflow;
     std::cout << (all ? "PASS\n" : "FAIL\n");
     return all ? 0 : 1;
 }
