@@ -94,6 +94,7 @@ private:
     bool    m_blinkOn = true;
     QString selectionText() const;
     SelPoint pixelToCell(const QPoint& p) const;
+    bool linkAtPixel(const QPoint& p) const;   // OSC 8 link or bare URL under p?
 
     // Find-in-scrollback. The bar is a QLineEdit child positioned at the
     // top-right of the widget; toggled with Ctrl+F, dismissed with Esc.

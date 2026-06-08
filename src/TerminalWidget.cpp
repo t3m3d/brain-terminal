@@ -33,7 +33,8 @@ TerminalWidget::TerminalWidget(const brain::Config& config, QWidget* parent)
       m_pty()
 {
     setFocusPolicy(Qt::StrongFocus);
-    setMouseTracking(false);
+    setMouseTracking(true);          // for Ctrl-hover link detection
+    setCursor(Qt::IBeamCursor);
 
     // Opaque paint by default (fast path). When the user wants
     // transparency, switch on the translucent flag — the renderer's bg
@@ -432,6 +433,21 @@ static int qtButtonCode(Qt::MouseButton b) {
     return b == Qt::LeftButton ? 0 : b == Qt::MiddleButton ? 1 : b == Qt::RightButton ? 2 : 0;
 }
 
+bool TerminalWidget::linkAtPixel(const QPoint& p) const {
+    SelPoint sp = pixelToCell(p);
+    int row = sp.absRow - ((long long)m_terminal.grid().absScroll() - m_viewportOffset);
+    if (row < 0 || row >= m_terminal.grid().rowCount()) return false;
+    const auto& cells = m_terminal.grid().rows()[row];
+    if (sp.col >= 0 && sp.col < (int)cells.size() && cells[sp.col].link != 0)
+        return true;
+    QString text;
+    for (const auto& cell : cells) {
+        uint32_t cp = cell.ch ? cell.ch : ' ';
+        text += QString::fromUcs4(reinterpret_cast<const char32_t*>(&cp), 1);
+    }
+    return !urlAt(text, sp.col).isEmpty();
+}
+
 void TerminalWidget::mousePressEvent(QMouseEvent* e) {
     // App mouse reporting consumes the click (Shift forces local selection).
     if (reportMouse(e, qtButtonCode(e->button()), true, false)) return;
@@ -490,7 +506,12 @@ void TerminalWidget::mouseMoveEvent(QMouseEvent* e) {
                 (e->buttons() & Qt::RightButton) ? 2 : 0;
         if (reportMouse(e, b, true, true)) return;
     }
-    if (!m_selecting) return;
+    if (!m_selecting) {
+        // Ctrl-hover over an OSC 8 link or a bare URL shows a hand cursor.
+        bool overLink = (e->modifiers() & Qt::ControlModifier) && linkAtPixel(e->pos());
+        setCursor(overLink ? Qt::PointingHandCursor : Qt::IBeamCursor);
+        return;
+    }
     m_selFocus = pixelToCell(e->pos());
     m_hasSelection = (m_selFocus.absRow != m_selAnchor.absRow
                    || m_selFocus.col    != m_selAnchor.col);
@@ -501,7 +522,6 @@ void TerminalWidget::mouseReleaseEvent(QMouseEvent* e) {
     if (reportMouse(e, qtButtonCode(e->button()), false, false)) return;
     if (e->button() != Qt::LeftButton) return;
     m_selecting = false;
-    setMouseTracking(false);
     if (m_hasSelection) copySelectionToPrimary();
 }
 
