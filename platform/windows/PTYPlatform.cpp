@@ -110,15 +110,20 @@ LPPROC_THREAD_ATTRIBUTE_LIST buildAttributeList(HPCON hPC) {
 }
 
 // "/bin/bash" → "cmd.exe". Anything that contains a backslash, drive letter,
-// or ends in .exe / .bat / .cmd is passed through unchanged.
+// or whose FIRST whitespace-delimited token ends in .exe / .bat / .cmd is
+// passed through unchanged (so `pwsh.exe -NoProfile` works).
 bool looksWindowsPath(const std::string& s) {
     if (s.size() >= 2 && s[1] == ':')           return true; // drive letter
     if (s.find('\\') != std::string::npos)      return true;
-    auto ends_with = [&](const char* suf) {
+    // Take the first token (before any space) for the suffix check so args
+    // like `pwsh.exe -NoProfile` are recognised.
+    std::size_t sp = s.find_first_of(" \t");
+    std::string head = (sp == std::string::npos) ? s : s.substr(0, sp);
+    auto ends_with = [&](const std::string& str, const char* suf) {
         std::size_t n = std::strlen(suf);
-        return s.size() >= n && _stricmp(s.c_str() + s.size() - n, suf) == 0;
+        return str.size() >= n && _stricmp(str.c_str() + str.size() - n, suf) == 0;
     };
-    return ends_with(".exe") || ends_with(".bat") || ends_with(".cmd");
+    return ends_with(head, ".exe") || ends_with(head, ".bat") || ends_with(head, ".cmd");
 }
 
 // Tier-1 Krypton integration (see KRYPTON_INTEGRATION.md). If kr.exe is on

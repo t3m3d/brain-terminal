@@ -115,12 +115,72 @@ void QtRenderer::renderWithView(
         return true;
     };
 
+    // Two-pass row rendering so glyphs that overflow their cell (powerline
+    // separators, ligatures, wide Nerd-Font icons) survive instead of being
+    // clipped by the next cell's bg fill. Pass 1: all bgs. Pass 2: all text.
     for (int r = 0; r < visibleRows; ++r) {
         const auto* row = cellAt(r);
         if (!row) continue;
         long long abs = topAbs + r;
-        for (int c = 0; c < cols && c < (int)row->size(); ++c) {
-            drawCell(painter, r, c, (*row)[c], cellSelected(abs, c));
+        int rowCols = std::min(cols, (int)row->size());
+
+        // Pass 1: backgrounds + selection overlays.
+        for (int c = 0; c < rowCols; ++c) {
+            const Cell& cell = (*row)[c];
+            int x = m_padX + c * m_cellWidth;
+            int y = m_padY + r * m_cellHeight;
+            QColor bg = ((cell.bg >> 24) == 0) ? m_defaultBg : QColor::fromRgba(cell.bg);
+            QColor fg = ((cell.fg >> 24) == 0) ? m_defaultFg : QColor::fromRgba(cell.fg);
+            if (cell.attrs & ATTR_INVERSE) std::swap(fg, bg);
+            if (bg != m_defaultBg)
+                painter.fillRect(x, y, m_cellWidth, m_cellHeight, bg);
+            if (cellSelected(abs, c))
+                painter.fillRect(x, y, m_cellWidth, m_cellHeight, m_selBg);
+        }
+
+        // Pass 2: glyphs. Inlined (a trimmed-down drawCell that SKIPS the bg
+        // fill, since pass 1 did it) so overflow from cell N isn't clipped by
+        // cell N+1's bg fill.
+        for (int c = 0; c < rowCols; ++c) {
+            const Cell& cell = (*row)[c];
+            if (cell.ch == 0 || cell.ch == ' ') {
+                if ((cell.attrs & ATTR_UNDERLINE) || cell.link != 0) {
+                    int x = m_padX + c * m_cellWidth;
+                    int y = m_padY + r * m_cellHeight;
+                    QColor fg = ((cell.fg >> 24) == 0) ? m_defaultFg : QColor::fromRgba(cell.fg);
+                    if (cell.attrs & ATTR_INVERSE) fg = m_defaultBg;
+                    painter.setPen(fg);
+                    painter.drawLine(x, y + m_ascent + 1, x + m_cellWidth, y + m_ascent + 1);
+                }
+                continue;
+            }
+            int x = m_padX + c * m_cellWidth;
+            int y = m_padY + r * m_cellHeight;
+            QColor bg = ((cell.bg >> 24) == 0) ? m_defaultBg : QColor::fromRgba(cell.bg);
+            QColor fg = ((cell.fg >> 24) == 0) ? m_defaultFg : QColor::fromRgba(cell.fg);
+            if (cell.attrs & ATTR_INVERSE) std::swap(fg, bg);
+
+            bool wantBold = m_useBold && (cell.attrs & ATTR_BOLD)
+                         && (m_font.weight() < QFont::DemiBold);
+            if (wantBold || (cell.attrs & (ATTR_ITALIC | ATTR_UNDERLINE))) {
+                QFont f = m_font;
+                if (wantBold)                    f.setBold(true);
+                if (cell.attrs & ATTR_ITALIC)    f.setItalic(true);
+                if (cell.attrs & ATTR_UNDERLINE) f.setUnderline(true);
+                painter.setFont(f);
+            } else {
+                painter.setFont(m_font);
+            }
+            painter.setPen(fg);
+            char32_t cp = cell.ch;
+            painter.drawText(x, y + m_ascent,
+                             QString::fromUcs4(reinterpret_cast<const char32_t*>(&cp), 1));
+
+            if (cell.link != 0 && !(cell.attrs & ATTR_UNDERLINE)) {
+                int uy = y + m_ascent + 2;
+                if (uy > y + m_cellHeight - 1) uy = y + m_cellHeight - 1;
+                painter.drawLine(x, uy, x + m_cellWidth, uy);
+            }
         }
     }
 
