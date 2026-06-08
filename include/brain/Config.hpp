@@ -38,6 +38,10 @@ public:
     int      paddingX()    const { return m_paddingX; }
     int      paddingY()    const { return m_paddingY; }
 
+    // Absolute/relative path of the file load() actually read ("" if none was
+    // found and defaults were used). Used to watch the file for live reload.
+    const std::string& sourcePath() const { return m_sourcePath; }
+
 private:
     std::string m_shell;
     std::string m_themePath;
@@ -61,6 +65,7 @@ private:
     std::array<uint32_t, 16> m_palette{};   // all 0 = unset
     int m_paddingX = 6;
     int m_paddingY = 4;
+    std::string m_sourcePath;   // file load() read, for live-reload watching
 
     Config() = default;
 };

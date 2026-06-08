@@ -15,6 +15,7 @@ class QWheelEvent;
 class QFocusEvent;
 class QLineEdit;
 class QLabel;
+class QFileSystemWatcher;
 
 namespace brain::ui {
 
@@ -78,6 +79,12 @@ private:
     bool reportMouse(QMouseEvent* e, int button, bool press, bool motion);
     void applyFontSize(int pt);
     int  m_currentFontSize = 14;
+
+    // Live config reload: watch brain.conf + the theme file and re-apply
+    // appearance (theme, colours, palette, padding, opacity, font) on save.
+    void setupConfigWatch();
+    void reloadConfig();
+    QFileSystemWatcher* m_cfgWatcher = nullptr;
     QString selectionText() const;
     SelPoint pixelToCell(const QPoint& p) const;
 

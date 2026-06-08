@@ -132,6 +132,7 @@ Config Config::load(const std::string& path) {
     Config c = defaults();
     if (!file.is_open())
         return c;
+    c.m_sourcePath = finalPath;
 
     auto trim = [](std::string& s) {
         s.erase(0, s.find_first_not_of(" \t"));

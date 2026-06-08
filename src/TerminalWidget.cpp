@@ -19,6 +19,8 @@
 #include <QHBoxLayout>
 #include <QFrame>
 #include <QResizeEvent>
+#include <QFileSystemWatcher>
+#include <QFile>
 #include <algorithm>
 
 namespace brain::ui {
@@ -57,6 +59,8 @@ TerminalWidget::TerminalWidget(const brain::Config& config, QWidget* parent)
         m_pty.writeInput(s);
     });
     m_terminal.setCellPixels(m_cellWidth, m_cellHeight);
+
+    setupConfigWatch();
 }
 
 void TerminalWidget::hookTerminalSignals() {
@@ -585,6 +589,83 @@ void TerminalWidget::pasteFromClipboard(bool primary) {
         m_viewportOffset = 0;
         update();
     }
+}
+
+void TerminalWidget::setupConfigWatch() {
+    m_cfgWatcher = new QFileSystemWatcher(this);
+    auto add = [this](const std::string& p) {
+        if (!p.empty()) {
+            QString qp = QString::fromStdString(p);
+            if (QFile::exists(qp)) m_cfgWatcher->addPath(qp);
+        }
+    };
+    add(m_config.sourcePath());
+    add(m_config.themePath());
+    connect(m_cfgWatcher, &QFileSystemWatcher::fileChanged, this, [this](const QString&) {
+        // Editors often replace the file (write-temp + rename), which drops
+        // the watch; debounce briefly then reload and re-arm the watches.
+        QTimer::singleShot(60, this, [this]() { reloadConfig(); });
+    });
+}
+
+void TerminalWidget::reloadConfig() {
+    brain::Config fresh = brain::Config::load("");
+    m_config = fresh;
+
+    if (m_config.scrollback() >= 0)
+        m_terminal.setScrollback(m_config.scrollback());
+
+    QFont font(QString::fromStdString(m_config.fontFamily()));
+    font.setStyleHint(QFont::Monospace);
+    font.setPointSize(m_currentFontSize > 0 ? m_currentFontSize : m_config.fontSize());
+    setFont(font);
+
+    QFontMetrics fm(font);
+    m_cellWidth  = std::max(1, fm.horizontalAdvance(QChar('M')));
+    m_cellHeight = std::max(1, fm.height());
+
+    delete m_renderer;
+    m_renderer = new renderer::QtRenderer(font, m_cellWidth, m_cellHeight);
+    m_renderer->loadTheme(m_config.themePath());
+    m_renderer->setCursorStyle(m_config.cursorStyle());
+    m_renderer->setUseBold(m_config.useBold());
+    if (m_config.foreground())  m_renderer->setDefaultFg(QColor::fromRgba(m_config.foreground()));
+    if (m_config.background())  m_renderer->setDefaultBg(QColor::fromRgba(m_config.background()));
+    if (m_config.cursorColor()) m_renderer->setCursorColor(QColor::fromRgba(m_config.cursorColor()));
+    if (m_config.selectionBg() || m_config.selectionFg()) {
+        m_renderer->setSelectionColors(
+            m_config.selectionBg() ? QColor::fromRgba(m_config.selectionBg()) : QColor(0x44,0x44,0x66),
+            m_config.selectionFg() ? QColor::fromRgba(m_config.selectionFg()) : QColor(0xFF,0xFF,0xFF));
+    }
+    for (int i = 0; i < 16; ++i) {
+        uint32_t themec;
+        if (m_renderer->themePaletteColor(i, themec)) m_terminal.setPaletteColor(i, themec);
+        if (m_config.paletteColor(i)) m_terminal.setPaletteColor(i, m_config.paletteColor(i));
+    }
+    m_renderer->setPadding(m_config.paddingX(), m_config.paddingY());
+
+    int op = m_config.opacityPercent();
+    if (op < 0) op = 0; if (op > 100) op = 100;
+    setAttribute(Qt::WA_TranslucentBackground, op < 100);
+    QColor bg = m_renderer->defaultBg();
+    bg.setAlpha(op * 255 / 100);
+    m_renderer->setDefaultBg(bg);
+
+    if (m_cfgWatcher) {
+        m_cfgWatcher->removePaths(m_cfgWatcher->files());
+        auto add = [this](const std::string& p) {
+            if (!p.empty()) {
+                QString qp = QString::fromStdString(p);
+                if (QFile::exists(qp)) m_cfgWatcher->addPath(qp);
+            }
+        };
+        add(m_config.sourcePath());
+        add(m_config.themePath());
+    }
+
+    resizeEvent(nullptr);
+    m_terminal.setCellPixels(m_cellWidth, m_cellHeight);
+    update();
 }
 
 void TerminalWidget::applyFontSize(int pt) {
