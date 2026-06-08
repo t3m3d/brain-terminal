@@ -460,6 +460,7 @@ void TerminalWidget::mouseReleaseEvent(QMouseEvent* e) {
     if (e->button() != Qt::LeftButton) return;
     m_selecting = false;
     setMouseTracking(false);
+    if (m_hasSelection) copySelectionToPrimary();
 }
 
 void TerminalWidget::mouseDoubleClickEvent(QMouseEvent* e) {
@@ -479,6 +480,7 @@ void TerminalWidget::mouseDoubleClickEvent(QMouseEvent* e) {
     m_selAnchor = { sp.absRow, a };
     m_selFocus  = { sp.absRow, b };
     m_hasSelection = true;
+    copySelectionToPrimary();
     update();
 }
 
@@ -580,6 +582,15 @@ void TerminalWidget::copySelectionToClipboard() {
     cb->setText(t);
     if (cb->supportsSelection())
         cb->setText(t, QClipboard::Selection);
+}
+
+// Mouse selection copies to PRIMARY only (so middle-click pastes it) without
+// touching the Ctrl+C/Ctrl+Shift+C clipboard — standard X11/Wayland behaviour.
+void TerminalWidget::copySelectionToPrimary() {
+    QClipboard* cb = QApplication::clipboard();
+    if (!cb->supportsSelection()) return;
+    QString t = selectionText();
+    if (!t.isEmpty()) cb->setText(t, QClipboard::Selection);
 }
 
 void TerminalWidget::pasteFromClipboard(bool primary) {

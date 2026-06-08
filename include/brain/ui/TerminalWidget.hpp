@@ -75,6 +75,7 @@ private:
     void hookTerminalSignals();
 
     void copySelectionToClipboard();
+    void copySelectionToPrimary();   // mouse-select -> PRIMARY (middle-click paste)
     void pasteFromClipboard(bool primary = false);
     bool reportMouse(QMouseEvent* e, int button, bool press, bool motion);
     void applyFontSize(int pt);
