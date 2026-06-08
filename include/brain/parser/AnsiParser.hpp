@@ -49,6 +49,9 @@ enum class EscapeType {
     // DCS string (ESC P ... ST); payload in .osc. Used for Sixel graphics.
     DCS,
 
+    // Device Attributes query (CSI c). .value: 0 = primary, 1 = secondary.
+    DeviceAttr,
+
     // Single-byte ESC sequences (ESC 7 / ESC 8).
     SaveCursor,        // DECSC: ESC 7  AND  CSI s
     RestoreCursor,     // DECRC: ESC 8  AND  CSI u

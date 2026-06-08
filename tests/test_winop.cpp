@@ -81,8 +81,17 @@ int main() {
                  (std::to_string(t8.images()[0].wpx) + "x" + std::to_string(t8.images()[0].hpx)))
               << ": " << (okSixel ? "yes" : "NO") << "\n";
 
+    // Primary DA must advertise sixel (4) so chafa/img2sixel auto-enable images.
+    std::string da;
+    Terminal t9(20, 5);
+    t9.setResponseCallback([&](const std::string& s){ da += s; });
+    auto feed9 = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t9.onPTYOutput(v); };
+    feed9("\x1b[c");
+    bool okDA = (da == "\x1b[?62;4c");
+    std::cout << "Primary DA advertises sixel (ESC[?62;4c): " << (okDA ? "yes" : "NO") << "\n";
+
     bool all = ok18 && ok14 && okCHA && okCursor && okStrike && okDim
-            && okClip && okCwd && okWide && okSixel;
+            && okClip && okCwd && okWide && okSixel && okDA;
     std::cout << (all ? "PASS\n" : "FAIL\n");
     return all ? 0 : 1;
 }

@@ -450,6 +450,14 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
             break;
         }
 
+        case EscapeType::DeviceAttr:
+            if (m_responseCallback) {
+                // Primary: VT220 (62) + Sixel (4) so chafa/img2sixel auto-enable
+                // images. Secondary: claim to be an xterm-class terminal.
+                m_responseCallback(seq.value == 1 ? "\x1b[>0;276;0c" : "\x1b[?62;4c");
+            }
+            break;
+
         default:
             break;
     }

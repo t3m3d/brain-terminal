@@ -149,9 +149,11 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
     // Strip a leading private-mode / intermediate marker (?, >, =, <). Shells
     // emit ESC[?25l, ESC[?2004h, etc. constantly; we don't act on private
     // modes yet, but must not feed the marker to the integer parser.
+    char marker = 0;
     if (!paramsStr.empty() &&
         (paramsStr[0] == '?' || paramsStr[0] == '>' ||
          paramsStr[0] == '=' || paramsStr[0] == '<')) {
+        marker = paramsStr[0];
         if (paramsStr[0] == '?') esc.privateMode = true;
         paramsStr.erase(0, 1);
     }
@@ -248,6 +250,10 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
         // Window manipulation / report (CSI 18t = size in chars, 14t = pixels).
         // The terminal must reply over the PTY (handled in Terminal).
         case 't': esc.type = EscapeType::WindowOp;  esc.value = p(0, 0); break;
+
+        // Device Attributes (DA). marker '>' = secondary, else primary. The
+        // Terminal replies advertising sixel so chafa/img2sixel auto-enable it.
+        case 'c': esc.type = EscapeType::DeviceAttr; esc.value = (marker == '>') ? 1 : 0; break;
 
         // DECSCUSR — cursor shape: CSI Ps SP q (space intermediate before 'q').
         // Other 'q' finals (DECLL CSI Ps q, DECSCA CSI Ps " q) are not this.
