@@ -108,8 +108,16 @@ int main() {
     bool okUlColor = (rc[0].ulColor == 0xFFFF0000) && (rc[1].ulColor == 0);
     std::cout << "Underline colour (58:2 red, 59 reset): " << (okUlColor ? "yes" : "NO") << "\n";
 
+    // DEC 1004 focus-reporting mode toggles.
+    Terminal t12(20, 3);
+    auto feedC = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t12.onPTYOutput(v); };
+    feedC("\x1b[?1004h"); bool on1004  = t12.focusReporting();
+    feedC("\x1b[?1004l"); bool off1004 = !t12.focusReporting();
+    bool okFocus = on1004 && off1004;
+    std::cout << "DEC 1004 focus reporting toggles: " << (okFocus ? "yes" : "NO") << "\n";
+
     bool all = ok18 && ok14 && okCHA && okCursor && okStrike && okDim
-            && okClip && okCwd && okWide && okSixel && okDA && okUl && okUlColor;
+            && okClip && okCwd && okWide && okSixel && okDA && okUl && okUlColor && okFocus;
     std::cout << (all ? "PASS\n" : "FAIL\n");
     return all ? 0 : 1;
 }

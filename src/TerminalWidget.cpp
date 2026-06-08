@@ -524,8 +524,16 @@ void TerminalWidget::wheelEvent(QWheelEvent* e) {
 // ---------------------------------------------------------------------------
 // Focus
 // ---------------------------------------------------------------------------
-void TerminalWidget::focusInEvent(QFocusEvent*)  { m_focused = true;  update(); }
-void TerminalWidget::focusOutEvent(QFocusEvent*) { m_focused = false; update(); }
+void TerminalWidget::focusInEvent(QFocusEvent*) {
+    m_focused = true;
+    if (m_terminal.focusReporting()) m_pty.writeInput("\x1b[I");   // DEC 1004
+    update();
+}
+void TerminalWidget::focusOutEvent(QFocusEvent*) {
+    m_focused = false;
+    if (m_terminal.focusReporting()) m_pty.writeInput("\x1b[O");
+    update();
+}
 
 // ---------------------------------------------------------------------------
 // Clipboard

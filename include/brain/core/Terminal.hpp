@@ -70,6 +70,9 @@ public:
     // Terminal modes (DEC private) for the frontend.
     bool bracketedPaste() const { return m_bracketedPaste; }
     bool cursorVisible()  const { return m_cursorVisible; }
+    // DEC 1004 focus reporting: when on, the widget sends ESC[I / ESC[O on
+    // focus in/out so apps (vim, tmux, fzf) can react.
+    bool focusReporting() const { return m_focusReporting; }
 
     // Mouse reporting (DEC 1000 click, 1002 drag, 1003 any-motion; 1006 SGR
     // encoding). 0 = off. mouseReport() builds the escape to send over the PTY.
@@ -139,6 +142,7 @@ private:
     std::string m_utf8;   // incomplete trailing UTF-8 sequence carried between feeds
     bool m_bracketedPaste = false;
     bool m_cursorVisible  = true;
+    bool m_focusReporting = false;   // DEC 1004
     int  m_mouseMode = 0;     // 0 off, else 1000/1002/1003
     bool m_mouseSGR  = false; // DEC 1006 SGR encoding
 

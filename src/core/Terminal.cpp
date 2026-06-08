@@ -247,6 +247,7 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
             if (seq.privateMode) {
                 switch (seq.value) {
                     case 25:   m_cursorVisible  = on; break;
+                    case 1004: m_focusReporting = on; break;
                     case 2004: m_bracketedPaste = on; break;
 
                     // Mouse reporting: 1000 click, 1002 button-drag, 1003 any
