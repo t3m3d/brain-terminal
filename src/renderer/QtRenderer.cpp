@@ -151,8 +151,8 @@ void QtRenderer::renderWithView(
                     int y = m_padY + r * m_cellHeight;
                     QColor fg = ((cell.fg >> 24) == 0) ? m_defaultFg : QColor::fromRgba(cell.fg);
                     if (cell.attrs & ATTR_INVERSE) fg = m_defaultBg;
-                    painter.setPen(fg);
-                    painter.drawLine(x, y + m_ascent + 1, x + m_cellWidth, y + m_ascent + 1);
+                    int style = (cell.attrs & ATTR_UNDERLINE) ? cell.ulStyle : 0;
+                    drawUnderline(painter, x, y, m_cellWidth, style, fg);
                 }
                 continue;
             }
@@ -165,12 +165,11 @@ void QtRenderer::renderWithView(
 
             bool wantBold = m_useBold && (cell.attrs & ATTR_BOLD)
                          && (m_font.weight() < QFont::DemiBold);
-            if (wantBold || (cell.attrs & (ATTR_ITALIC | ATTR_UNDERLINE | ATTR_STRIKE))) {
+            if (wantBold || (cell.attrs & (ATTR_ITALIC | ATTR_STRIKE))) {
                 QFont f = m_font;
-                if (wantBold)                    f.setBold(true);
-                if (cell.attrs & ATTR_ITALIC)    f.setItalic(true);
-                if (cell.attrs & ATTR_UNDERLINE) f.setUnderline(true);
-                if (cell.attrs & ATTR_STRIKE)    f.setStrikeOut(true);
+                if (wantBold)                  f.setBold(true);
+                if (cell.attrs & ATTR_ITALIC)  f.setItalic(true);
+                if (cell.attrs & ATTR_STRIKE)  f.setStrikeOut(true);
                 painter.setFont(f);
             } else {
                 painter.setFont(m_font);
@@ -180,11 +179,12 @@ void QtRenderer::renderWithView(
             painter.drawText(x, y + m_ascent,
                              QString::fromUcs4(reinterpret_cast<const char32_t*>(&cp), 1));
 
-            if (cell.link != 0 && !(cell.attrs & ATTR_UNDERLINE)) {
-                int uy = y + m_ascent + 2;
-                if (uy > y + m_cellHeight - 1) uy = y + m_cellHeight - 1;
-                painter.drawLine(x, uy, x + m_cellWidth, uy);
-            }
+            // Underline (styled: single/double/curly/dotted/dashed) drawn by
+            // hand so undercurl etc. work; OSC 8 links get a plain underline.
+            if (cell.attrs & ATTR_UNDERLINE)
+                drawUnderline(painter, x, y, m_cellWidth, cell.ulStyle, fg);
+            else if (cell.link != 0)
+                drawUnderline(painter, x, y, m_cellWidth, 0, fg);
         }
     }
 
@@ -241,6 +241,35 @@ void QtRenderer::renderWithView(
                 }
             }
         }
+    }
+}
+
+void QtRenderer::drawUnderline(QPainter& painter, int x, int y, int w, int style, const QColor& col) {
+    int uy = y + m_ascent + 2;
+    if (uy > y + m_cellHeight - 2) uy = y + m_cellHeight - 2;
+    QPen pen(col);
+    pen.setWidth(1);
+    switch (style) {
+        case UL_DOUBLE:
+            painter.setPen(pen);
+            painter.drawLine(x, uy - 1, x + w, uy - 1);
+            painter.drawLine(x, uy + 1, x + w, uy + 1);
+            break;
+        case UL_CURLY: {                 // zig-zag approximation of undercurl
+            painter.setPen(pen);
+            int amp = 1, step = 2, py = uy + amp;
+            bool up = true;
+            for (int px = x; px < x + w; px += step) {
+                int nx = std::min(px + step, x + w);
+                int ny = up ? uy - amp : uy + amp;
+                painter.drawLine(px, py, nx, ny);
+                py = ny; up = !up;
+            }
+            break;
+        }
+        case UL_DOTTED: pen.setStyle(Qt::DotLine);  painter.setPen(pen); painter.drawLine(x, uy, x + w, uy); break;
+        case UL_DASHED: pen.setStyle(Qt::DashLine); painter.setPen(pen); painter.drawLine(x, uy, x + w, uy); break;
+        default:        painter.setPen(pen);        painter.drawLine(x, uy, x + w, uy); break;  // single
     }
 }
 

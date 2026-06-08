@@ -316,12 +316,33 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
                 else if (code == 1)  m_grid.enableAttr(renderer::ATTR_BOLD);
                 else if (code == 2)  m_grid.enableAttr(renderer::ATTR_DIM);
                 else if (code == 3)  m_grid.enableAttr(renderer::ATTR_ITALIC);
-                else if (code == 4)  m_grid.enableAttr(renderer::ATTR_UNDERLINE);
+                else if (code == 4) {
+                    // SGR 4 / 4:N — underline with an optional style.
+                    //   4:0 off, 4:1 single, 4:2 double, 4:3 curly, 4:4 dotted, 4:5 dashed
+                    if (seq.ulStyle == 0) {
+                        m_grid.disableAttr(renderer::ATTR_UNDERLINE);
+                        m_grid.setUnderlineStyle(renderer::UL_SINGLE);
+                    } else {
+                        m_grid.enableAttr(renderer::ATTR_UNDERLINE);
+                        uint8_t st = renderer::UL_SINGLE;
+                        switch (seq.ulStyle) {
+                            case 2: st = renderer::UL_DOUBLE; break;
+                            case 3: st = renderer::UL_CURLY;  break;
+                            case 4: st = renderer::UL_DOTTED; break;
+                            case 5: st = renderer::UL_DASHED; break;
+                            default: st = renderer::UL_SINGLE; break;   // -1 or 1
+                        }
+                        m_grid.setUnderlineStyle(st);
+                    }
+                }
                 else if (code == 7)  m_grid.enableAttr(renderer::ATTR_INVERSE);
                 else if (code == 9)  m_grid.enableAttr(renderer::ATTR_STRIKE);
+                else if (code == 21) { m_grid.enableAttr(renderer::ATTR_UNDERLINE);
+                                       m_grid.setUnderlineStyle(renderer::UL_DOUBLE); }
                 else if (code == 22) m_grid.disableAttr(renderer::ATTR_BOLD | renderer::ATTR_DIM);
                 else if (code == 23) m_grid.disableAttr(renderer::ATTR_ITALIC);
-                else if (code == 24) m_grid.disableAttr(renderer::ATTR_UNDERLINE);
+                else if (code == 24) { m_grid.disableAttr(renderer::ATTR_UNDERLINE);
+                                       m_grid.setUnderlineStyle(renderer::UL_SINGLE); }
                 else if (code == 27) m_grid.disableAttr(renderer::ATTR_INVERSE);
                 else if (code == 29) m_grid.disableAttr(renderer::ATTR_STRIKE);
                 else if (code >= 30 && code <= 37) m_grid.setFG16(code - 30);

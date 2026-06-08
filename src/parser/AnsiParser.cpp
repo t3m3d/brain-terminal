@@ -162,10 +162,24 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
     // fields, colon sub-params (38:2:r:g:b), and non-numeric junk without
     // throwing. A bad CSI param must never crash the terminal.
     std::vector<int> params;
+    int sgrUlStyle = -1;
     if (!paramsStr.empty()) {
         std::stringstream ss(paramsStr);
         std::string part;
         while (std::getline(ss, part, ';')) {
+            // Colon sub-parameters, e.g. "4:3" (curly underline). We only act on
+            // the underline form; the leading number drives everything else.
+            size_t colon = part.find(':');
+            if (colon != std::string::npos) {
+                int main = 0;
+                try { main = std::stoi(part.substr(0, colon)); } catch (...) { main = 0; }
+                if (main == 4) {
+                    try { sgrUlStyle = std::stoi(part.substr(colon + 1)); } catch (...) { sgrUlStyle = 1; }
+                    params.push_back(4);
+                    continue;
+                }
+                part = part.substr(0, colon);   // other colon forms: take the lead int
+            }
             int v = 0;
             try {
                 if (!part.empty()) v = std::stoi(part);
@@ -240,6 +254,7 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
             // an empty list means reset ([0]).
             esc.type = EscapeType::SGR;
             esc.params = params.empty() ? std::vector<int>{0} : params;
+            esc.ulStyle = sgrUlStyle;
             break;
         }
 

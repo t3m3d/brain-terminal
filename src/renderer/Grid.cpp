@@ -212,6 +212,7 @@ void Grid::putCodepoint(uint32_t cp) {
         cell.fg = m_currentFG;
         cell.bg = m_currentBG;
         cell.attrs = m_currentAttrs;
+        cell.ulStyle = m_currentUlStyle;
         cell.link = m_currentLink;
         // Wide glyph: park a continuation cell (ch = 0) in the next column. The
         // renderer draws nothing for it and the wide glyph from this cell
@@ -294,6 +295,7 @@ void Grid::resetAttributes() {
     m_currentFG = 0xFFFFFFFF;   // default fg sentinel
     m_currentBG = 0x00000000;   // default bg (transparent)
     m_currentAttrs = 0;
+    m_currentUlStyle = 0;
 }
 
 void Grid::clampCursor() {

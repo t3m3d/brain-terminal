@@ -90,8 +90,18 @@ int main() {
     bool okDA = (da == "\x1b[?62;4c");
     std::cout << "Primary DA advertises sixel (ESC[?62;4c): " << (okDA ? "yes" : "NO") << "\n";
 
+    // Underline styles: SGR 4:3 = curly (undercurl), used by LSP/nvim.
+    Terminal t10(20, 3);
+    auto feedA = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t10.onPTYOutput(v); };
+    feedA("\x1b[4:3mU\x1b[4:2mD\x1b[24mN");
+    const auto& ru = t10.grid().rows()[0];
+    bool okUl = (ru[0].attrs & brain::renderer::ATTR_UNDERLINE) && ru[0].ulStyle == brain::renderer::UL_CURLY
+             && (ru[1].attrs & brain::renderer::ATTR_UNDERLINE) && ru[1].ulStyle == brain::renderer::UL_DOUBLE
+             && !(ru[2].attrs & brain::renderer::ATTR_UNDERLINE);
+    std::cout << "Underline styles (4:3 curly / 4:2 double / 24 off): " << (okUl ? "yes" : "NO") << "\n";
+
     bool all = ok18 && ok14 && okCHA && okCursor && okStrike && okDim
-            && okClip && okCwd && okWide && okSixel && okDA;
+            && okClip && okCwd && okWide && okSixel && okDA && okUl;
     std::cout << (all ? "PASS\n" : "FAIL\n");
     return all ? 0 : 1;
 }

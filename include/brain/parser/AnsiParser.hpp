@@ -99,6 +99,10 @@ struct EscapeSequence {
     // All SGR parameters (for EscapeType::SGR), applied left-to-right.
     std::vector<int> params;
 
+    // Underline sub-style from SGR 4:N (0 off,1 single,2 double,3 curly,
+    // 4 dotted,5 dashed); -1 when not specified. Used with SGR code 4.
+    int ulStyle = -1;
+
     // True for ESC[? ... (DEC private mode), used with Set/ResetMode.
     bool privateMode = false;
 

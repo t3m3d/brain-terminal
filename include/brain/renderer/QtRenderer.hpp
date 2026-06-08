@@ -81,6 +81,8 @@ private:
     std::array<bool, 16>     m_themePaletteSet{};
 
     void drawCell(QPainter& painter, int row, int col, const Cell& cell, bool selected);
+    // Draw an underline of the given UnderlineStyle across one cell width.
+    void drawUnderline(QPainter& painter, int x, int y, int w, int style, const QColor& col);
 };
 
 }
