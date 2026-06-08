@@ -30,10 +30,16 @@ public:
     using ResponseCallback = std::function<void(const std::string&)>;
     // DECSCUSR cursor-shape change; arg is "block" | "underline" | "bar".
     using CursorStyleCallback = std::function<void(const std::string&)>;
+    // OSC 52 clipboard write; arg is the base64 payload the app sent.
+    using ClipboardCallback = std::function<void(const std::string&)>;
     void setTitleCallback   (TitleCallback    cb) { m_titleCallback    = std::move(cb); }
     void setBellCallback    (BellCallback     cb) { m_bellCallback     = std::move(cb); }
     void setResponseCallback(ResponseCallback cb) { m_responseCallback = std::move(cb); }
     void setCursorStyleCallback(CursorStyleCallback cb) { m_cursorStyleCallback = std::move(cb); }
+    void setClipboardCallback(ClipboardCallback cb) { m_clipboardCallback = std::move(cb); }
+
+    // Most-recent working directory reported by the shell via OSC 7, or empty.
+    const std::string& cwd() const { return m_cwd; }
 
     // Cell size in pixels, so CSI 14t (report size in pixels) can be answered.
     void setCellPixels(int w, int h) { m_cellPxW = w; m_cellPxH = h; }
@@ -148,6 +154,8 @@ private:
     BellCallback     m_bellCallback;
     ResponseCallback m_responseCallback;
     CursorStyleCallback m_cursorStyleCallback;
+    ClipboardCallback   m_clipboardCallback;
+    std::string m_cwd;   // OSC 7 reported working directory
     int m_cellPxW = 8;    // cell pixel size, for CSI 14t replies
     int m_cellPxH = 16;
 

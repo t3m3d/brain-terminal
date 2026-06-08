@@ -79,6 +79,12 @@ void TerminalWidget::hookTerminalSignals() {
         if (m_renderer) m_renderer->setCursorStyle(s);
         update();
     });
+    // OSC 52: let the shell / tmux / vim put text on the system clipboard.
+    m_terminal.setClipboardCallback([](const std::string& b64) {
+        QByteArray decoded = QByteArray::fromBase64(QByteArray::fromStdString(b64));
+        if (auto* cb = QApplication::clipboard())
+            cb->setText(QString::fromUtf8(decoded));
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -204,8 +210,7 @@ void TerminalWidget::setupRenderer() {
     // Bake window opacity into the default background alpha (compositors —
     // Hyprland/Wayland/DWM — composite this). 100 = opaque.
     {
-        int op = m_config.opacityPercent();
-        if (op < 0) op = 0; if (op > 100) op = 100;
+        int op = std::clamp(m_config.opacityPercent(), 0, 100);
         QColor bg = m_renderer->defaultBg();
         bg.setAlpha(op * 255 / 100);
         m_renderer->setDefaultBg(bg);
@@ -649,8 +654,7 @@ void TerminalWidget::reloadConfig() {
     }
     m_renderer->setPadding(m_config.paddingX(), m_config.paddingY());
 
-    int op = m_config.opacityPercent();
-    if (op < 0) op = 0; if (op > 100) op = 100;
+    int op = std::clamp(m_config.opacityPercent(), 0, 100);
     setAttribute(Qt::WA_TranslucentBackground, op < 100);
     QColor bg = m_renderer->defaultBg();
     bg.setAlpha(op * 255 / 100);

@@ -376,6 +376,48 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
                 break;
             }
 
+            // OSC 52 — clipboard. 52;<sel>;<base64-data>. A bare "?" data field
+            // is a READ request; we ignore reads (a remote app shouldn't be able
+            // to exfiltrate the clipboard) but honour writes. The widget decodes
+            // the base64 and sets the system clipboard.
+            if (s.rfind("52;", 0) == 0) {
+                size_t semi = s.find(';', 3);
+                if (semi != std::string::npos) {
+                    std::string data = s.substr(semi + 1);
+                    if (data != "?" && !data.empty() && m_clipboardCallback)
+                        m_clipboardCallback(data);
+                }
+                break;
+            }
+
+            // OSC 7 — working directory: 7;file://host/path (path may be
+            // percent-encoded). Stored so "open a new tab here" can use it.
+            if (s.rfind("7;", 0) == 0) {
+                std::string uri = s.substr(2);
+                std::string path = uri;
+                const std::string fp = "file://";
+                if (uri.rfind(fp, 0) == 0) {
+                    size_t slash = uri.find('/', fp.size());   // skip the host part
+                    path = (slash == std::string::npos) ? std::string() : uri.substr(slash);
+                }
+                std::string decoded;
+                for (size_t i = 0; i < path.size(); ++i) {
+                    if (path[i] == '%' && i + 2 < path.size()) {
+                        auto hex = [](char c) -> int {
+                            if (c >= '0' && c <= '9') return c - '0';
+                            if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+                            if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                            return -1;
+                        };
+                        int hi = hex(path[i+1]), lo = hex(path[i+2]);
+                        if (hi >= 0 && lo >= 0) { decoded += (char)(hi * 16 + lo); i += 2; continue; }
+                    }
+                    decoded += path[i];
+                }
+                if (!decoded.empty()) m_cwd = decoded;
+                break;
+            }
+
             // OSC 133 shell integration (FinalTerm): A=prompt start, D[;code]=cmd done.
             if (s.rfind("133;", 0) == 0 && s.size() >= 5) {
                 char kind = s[4];

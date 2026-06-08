@@ -42,7 +42,23 @@ int main() {
     bool okDim    = (t4.grid().rows()[0][1].attrs & brain::renderer::ATTR_DIM)    != 0;
     std::cout << "SGR 9 strike / SGR 2 dim: " << ((okStrike && okDim) ? "yes" : "NO") << "\n";
 
-    bool all = ok18 && ok14 && okCHA && okCursor && okStrike && okDim;
+    // OSC 52 clipboard write: callback receives the base64 payload.
+    std::string clip;
+    Terminal t5(20, 5);
+    t5.setClipboardCallback([&](const std::string& b64){ clip = b64; });
+    auto feed5 = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t5.onPTYOutput(v); };
+    feed5("\x1b]52;c;aGVsbG8=\x07");          // base64("hello")
+    bool okClip = (clip == "aGVsbG8=");
+    std::cout << "OSC 52 clipboard payload: " << (okClip ? "yes" : "NO") << "\n";
+
+    // OSC 7 working directory: percent-decoded path stored.
+    Terminal t6(20, 5);
+    auto feed6 = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t6.onPTYOutput(v); };
+    feed6("\x1b]7;file://host/home/me/a%20b\x07");
+    bool okCwd = (t6.cwd() == "/home/me/a b");
+    std::cout << "OSC 7 cwd (percent-decoded): " << (okCwd ? "yes" : "NO") << "\n";
+
+    bool all = ok18 && ok14 && okCHA && okCursor && okStrike && okDim && okClip && okCwd;
     std::cout << (all ? "PASS\n" : "FAIL\n");
     return all ? 0 : 1;
 }
