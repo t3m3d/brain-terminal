@@ -159,7 +159,9 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
             if (m_cursorStyleCallback) {
                 const char* style = (seq.value <= 2) ? "block"
                                   : (seq.value <= 4) ? "underline" : "bar";
-                m_cursorStyleCallback(style);
+                // 0/1 blinking block, 2 steady, 3 blink, 4 steady, 5 blink, 6 steady.
+                bool blink = (seq.value == 0) || (seq.value % 2 == 1);
+                m_cursorStyleCallback(style, blink);
             }
             break;
 

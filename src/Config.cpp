@@ -184,6 +184,11 @@ Config Config::load(const std::string& path) {
         else if (key == "scrollback")      c.m_scrollback      = to_int(val, c.m_scrollback);
         else if (key == "opacity")         c.m_opacityPercent  = to_int(val, c.m_opacityPercent);
         else if (key == "cursor_style")    c.m_cursorStyle     = val;
+        else if (key == "cursor_blink") {
+            std::string v = val;
+            for (char& ch : v) ch = (char)tolower((unsigned char)ch);
+            c.m_cursorBlink = (v == "yes" || v == "on" || v == "true" || v == "1");
+        }
         else if (key == "startup_command") c.m_startupCommand  = val;
         else if (key == "tabs")            c.m_tabsMode        = val;
         else if (key == "foreground")      c.m_foreground      = parseColor(val);

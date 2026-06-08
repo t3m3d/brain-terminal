@@ -86,6 +86,12 @@ private:
     void setupConfigWatch();
     void reloadConfig();
     QFileSystemWatcher* m_cfgWatcher = nullptr;
+
+    // Cursor blink (config cursor_blink + DECSCUSR blink variants).
+    void setCursorBlink(bool on);
+    QTimer* m_blinkTimer = nullptr;
+    bool    m_cursorBlink = false;
+    bool    m_blinkOn = true;
     QString selectionText() const;
     SelPoint pixelToCell(const QPoint& p) const;
 

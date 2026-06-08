@@ -23,6 +23,7 @@ public:
     int                scrollback()     const { return m_scrollback; }
     int                opacityPercent() const { return m_opacityPercent; }
     const std::string& cursorStyle()    const { return m_cursorStyle; }
+    bool               cursorBlink()    const { return m_cursorBlink; }
     const std::string& startupCommand() const { return m_startupCommand; }
 
     // "auto" | "on" | "off". auto = tabs everywhere except tiling WMs.
@@ -54,6 +55,7 @@ private:
     int         m_scrollback     = 5000;
     int         m_opacityPercent = 100;
     std::string m_cursorStyle    = "block";    // block | underline | bar
+    bool        m_cursorBlink    = false;       // blink the cursor
     std::string m_startupCommand = "";         // command sent to shell after spawn
     std::string m_tabsMode       = "auto";     // auto | on | off
 

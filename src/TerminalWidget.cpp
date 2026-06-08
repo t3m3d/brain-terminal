@@ -61,6 +61,23 @@ TerminalWidget::TerminalWidget(const brain::Config& config, QWidget* parent)
     m_terminal.setCellPixels(m_cellWidth, m_cellHeight);
 
     setupConfigWatch();
+
+    m_blinkTimer = new QTimer(this);
+    m_blinkTimer->setInterval(530);   // typical terminal blink half-period
+    connect(m_blinkTimer, &QTimer::timeout, this, [this]() {
+        m_blinkOn = !m_blinkOn;
+        update();
+    });
+    setCursorBlink(m_config.cursorBlink());
+}
+
+void TerminalWidget::setCursorBlink(bool on) {
+    m_cursorBlink = on;
+    m_blinkOn = true;
+    if (!m_blinkTimer) return;
+    if (on) m_blinkTimer->start();
+    else    m_blinkTimer->stop();
+    update();
 }
 
 void TerminalWidget::hookTerminalSignals() {
@@ -74,9 +91,10 @@ void TerminalWidget::hookTerminalSignals() {
         // the window can listen for bellRang() and flash the chrome.
         update();
     });
-    // DECSCUSR: apps (vim/neovim) switch cursor shape per mode.
-    m_terminal.setCursorStyleCallback([this](const std::string& s) {
+    // DECSCUSR: apps (vim/neovim) switch cursor shape + blink per mode.
+    m_terminal.setCursorStyleCallback([this](const std::string& s, bool blink) {
         if (m_renderer) m_renderer->setCursorStyle(s);
+        setCursorBlink(blink);
         update();
     });
     // OSC 52: let the shell / tmux / vim put text on the system clipboard.
@@ -244,7 +262,8 @@ void TerminalWidget::paintEvent(QPaintEvent*) {
             m_hasSelection ? &m_selFocus.absRow  : nullptr,
             m_hasSelection ? &m_selFocus.col     : nullptr,
             m_focused,
-            m_terminal.cursorVisible(),
+            // Blink only while focused; an unfocused window shows a steady hollow cursor.
+            m_terminal.cursorVisible() && (!(m_cursorBlink && m_focused) || m_blinkOn),
             &m_terminal.images());
     }
 }
@@ -254,6 +273,9 @@ void TerminalWidget::paintEvent(QPaintEvent*) {
 // ---------------------------------------------------------------------------
 void TerminalWidget::keyPressEvent(QKeyEvent* e) {
     using namespace brain::input;
+
+    // Keep the cursor solid right after a keystroke, then resume blinking.
+    if (m_cursorBlink && m_blinkTimer) { m_blinkOn = true; m_blinkTimer->start(); }
 
     if ((e->modifiers() & Qt::ControlModifier) &&
         (e->modifiers() & Qt::ShiftModifier)) {
@@ -691,6 +713,8 @@ void TerminalWidget::reloadConfig() {
         add(m_config.sourcePath());
         add(m_config.themePath());
     }
+
+    setCursorBlink(m_config.cursorBlink());
 
     resizeEvent(nullptr);
     m_terminal.setCellPixels(m_cellWidth, m_cellHeight);

@@ -29,8 +29,8 @@ public:
     using TitleCallback    = std::function<void(const std::string&)>;
     using BellCallback     = std::function<void()>;
     using ResponseCallback = std::function<void(const std::string&)>;
-    // DECSCUSR cursor-shape change; arg is "block" | "underline" | "bar".
-    using CursorStyleCallback = std::function<void(const std::string&)>;
+    // DECSCUSR cursor-shape change; args are "block"|"underline"|"bar" + blink.
+    using CursorStyleCallback = std::function<void(const std::string&, bool)>;
     // OSC 52 clipboard write; arg is the base64 payload the app sent.
     using ClipboardCallback = std::function<void(const std::string&)>;
     void setTitleCallback   (TitleCallback    cb) { m_titleCallback    = std::move(cb); }

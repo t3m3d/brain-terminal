@@ -24,13 +24,13 @@ int main() {
     std::cout << "CHA (ESC[1G) repositions: " << (okCHA ? "yes" : "NO") << "\n";
 
     // DECSCUSR (CSI Ps SP q): vim insert-mode bar, etc.
-    std::string cstyle;
+    std::string cstyle; bool cblink = false;
     Terminal t3(20, 5);
-    t3.setCursorStyleCallback([&](const std::string& s){ cstyle = s; });
+    t3.setCursorStyleCallback([&](const std::string& s, bool b){ cstyle = s; cblink = b; });
     auto feed3 = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t3.onPTYOutput(v); };
-    feed3("\x1b[5 q"); bool okBar   = (cstyle == "bar");
-    feed3("\x1b[2 q"); bool okBlock = (cstyle == "block");
-    feed3("\x1b[4 q"); bool okUnder = (cstyle == "underline");
+    feed3("\x1b[5 q"); bool okBar   = (cstyle == "bar") && cblink;       // 5 = blinking bar
+    feed3("\x1b[2 q"); bool okBlock = (cstyle == "block") && !cblink;    // 2 = steady block
+    feed3("\x1b[4 q"); bool okUnder = (cstyle == "underline") && !cblink;// 4 = steady underline
     bool okCursor = okBar && okBlock && okUnder;
     std::cout << "DECSCUSR 5/2/4 -> bar/block/underline: " << (okCursor ? "yes" : "NO") << "\n";
 
