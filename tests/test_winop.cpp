@@ -100,8 +100,16 @@ int main() {
              && !(ru[2].attrs & brain::renderer::ATTR_UNDERLINE);
     std::cout << "Underline styles (4:3 curly / 4:2 double / 24 off): " << (okUl ? "yes" : "NO") << "\n";
 
+    // Underline colour (SGR 58): colon truecolor + reset (LSP red squiggles).
+    Terminal t11(20, 3);
+    auto feedB = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t11.onPTYOutput(v); };
+    feedB("\x1b[4:3;58:2::255:0:0mE\x1b[59mF");
+    const auto& rc = t11.grid().rows()[0];
+    bool okUlColor = (rc[0].ulColor == 0xFFFF0000) && (rc[1].ulColor == 0);
+    std::cout << "Underline colour (58:2 red, 59 reset): " << (okUlColor ? "yes" : "NO") << "\n";
+
     bool all = ok18 && ok14 && okCHA && okCursor && okStrike && okDim
-            && okClip && okCwd && okWide && okSixel && okDA && okUl;
+            && okClip && okCwd && okWide && okSixel && okDA && okUl && okUlColor;
     std::cout << (all ? "PASS\n" : "FAIL\n");
     return all ? 0 : 1;
 }

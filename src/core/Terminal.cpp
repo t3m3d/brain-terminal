@@ -357,6 +357,11 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
                     else if (i + 4 < ps.size() && ps[i+1] == 2) { m_grid.setBGTrue(ps[i+2], ps[i+3], ps[i+4]); i += 4; }
                 }
                 else if (code == 49) m_grid.setBGDefault();
+                else if (code == 58) {   // underline colour (SGR 58:5:n / 58:2:r:g:b)
+                    if (i + 2 < ps.size() && ps[i+1] == 5) { m_grid.setUnderlineColor256(ps[i+2]); i += 2; }
+                    else if (i + 4 < ps.size() && ps[i+1] == 2) { m_grid.setUnderlineColorRGB(ps[i+2], ps[i+3], ps[i+4]); i += 4; }
+                }
+                else if (code == 59) m_grid.setUnderlineColorDefault();
                 else if (code >= 90 && code <= 97)   m_grid.setFG16(code - 90 + 8);   // bright fg
                 else if (code >= 100 && code <= 107) m_grid.setBG16(code - 100 + 8);  // bright bg
             }

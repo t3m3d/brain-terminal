@@ -77,6 +77,11 @@ public:
     void enableAttr(uint8_t flag);   // CellAttr bit
     void disableAttr(uint8_t flag);
     void setUnderlineStyle(uint8_t s) { m_currentUlStyle = s; }   // UnderlineStyle
+    void setUnderlineColorRGB(int r, int g, int b) {
+        m_currentUlColor = 0xFF000000u | (uint32_t(r) << 16) | (uint32_t(g) << 8) | uint32_t(b);
+    }
+    void setUnderlineColor256(int idx);
+    void setUnderlineColorDefault() { m_currentUlColor = 0; }
     void resetAttributes();
 
     const std::vector<std::vector<Cell>>& rows() const;
@@ -112,6 +117,7 @@ private:
     uint32_t m_currentBG;
     uint8_t  m_currentAttrs = 0;   // CellAttr flags applied to new cells
     uint8_t  m_currentUlStyle = 0; // UnderlineStyle applied to new cells
+    uint32_t m_currentUlColor = 0; // SGR 58 underline colour, 0 = use fg
     uint16_t m_currentLink  = 0;   // OSC 8 hyperlink id stamped on new cells
     bool     m_wrapPending  = false; // deferred wrap: cursor parked in last column
 

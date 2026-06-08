@@ -213,6 +213,7 @@ void Grid::putCodepoint(uint32_t cp) {
         cell.bg = m_currentBG;
         cell.attrs = m_currentAttrs;
         cell.ulStyle = m_currentUlStyle;
+        cell.ulColor = m_currentUlColor;
         cell.link = m_currentLink;
         // Wide glyph: park a continuation cell (ch = 0) in the next column. The
         // renderer draws nothing for it and the wide glyph from this cell
@@ -258,6 +259,11 @@ void Grid::setCursor(int row, int col) {
     clampCursor();
 }
 
+void Grid::setUnderlineColor256(int idx) {
+    if (idx >= 0 && idx < 256)
+        m_currentUlColor = palette256[idx];
+}
+
 void Grid::setFG16(int index) {
     if (index >= 0 && index < 16)
         m_currentFG = palette16[index];
@@ -296,6 +302,7 @@ void Grid::resetAttributes() {
     m_currentBG = 0x00000000;   // default bg (transparent)
     m_currentAttrs = 0;
     m_currentUlStyle = 0;
+    m_currentUlColor = 0;
 }
 
 void Grid::clampCursor() {

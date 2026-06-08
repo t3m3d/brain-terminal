@@ -178,7 +178,15 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
                     params.push_back(4);
                     continue;
                 }
-                part = part.substr(0, colon);   // other colon forms: take the lead int
+                // Colon colour forms (38:2::r:g:b, 48:5:n, 58:2::r:g:b…): flatten
+                // the non-empty numeric sub-fields so the flat handler reads them.
+                std::stringstream cs(part);
+                std::string tok;
+                while (std::getline(cs, tok, ':')) {
+                    if (tok.empty()) continue;
+                    try { params.push_back(std::stoi(tok)); } catch (...) {}
+                }
+                continue;
             }
             int v = 0;
             try {

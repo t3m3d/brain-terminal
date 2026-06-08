@@ -29,9 +29,9 @@ struct Cell {
     uint8_t  attrs = 0;     // CellAttr bit flags
     uint8_t  ulStyle = 0;   // UnderlineStyle, when ATTR_UNDERLINE is set
     uint16_t link = 0;   // OSC 8 hyperlink id, 0 = none. Resolved via
-                         // Terminal::linkUri(id). 16 bits keeps Cell at
-                         // 16 B alignment — 65 535 distinct links per
+                         // Terminal::linkUri(id). 65 535 distinct links per
                          // session is far more than any real workload.
+    uint32_t ulColor = 0;   // SGR 58 underline colour (0xAARRGGBB); 0 = use fg
 };
 
 }

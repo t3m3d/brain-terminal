@@ -152,7 +152,9 @@ void QtRenderer::renderWithView(
                     QColor fg = ((cell.fg >> 24) == 0) ? m_defaultFg : QColor::fromRgba(cell.fg);
                     if (cell.attrs & ATTR_INVERSE) fg = m_defaultBg;
                     int style = (cell.attrs & ATTR_UNDERLINE) ? cell.ulStyle : 0;
-                    drawUnderline(painter, x, y, m_cellWidth, style, fg);
+                    QColor ulc = ((cell.attrs & ATTR_UNDERLINE) && cell.ulColor)
+                               ? QColor::fromRgba(cell.ulColor) : fg;
+                    drawUnderline(painter, x, y, m_cellWidth, style, ulc);
                 }
                 continue;
             }
@@ -180,9 +182,11 @@ void QtRenderer::renderWithView(
                              QString::fromUcs4(reinterpret_cast<const char32_t*>(&cp), 1));
 
             // Underline (styled: single/double/curly/dotted/dashed) drawn by
-            // hand so undercurl etc. work; OSC 8 links get a plain underline.
+            // hand so undercurl etc. work; SGR 58 colours it, else use fg. OSC 8
+            // links get a plain underline.
             if (cell.attrs & ATTR_UNDERLINE)
-                drawUnderline(painter, x, y, m_cellWidth, cell.ulStyle, fg);
+                drawUnderline(painter, x, y, m_cellWidth, cell.ulStyle,
+                              cell.ulColor ? QColor::fromRgba(cell.ulColor) : fg);
             else if (cell.link != 0)
                 drawUnderline(painter, x, y, m_cellWidth, 0, fg);
         }
