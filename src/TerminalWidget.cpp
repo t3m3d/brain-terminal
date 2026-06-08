@@ -64,7 +64,7 @@ TerminalWidget::TerminalWidget(const brain::Config& config, QWidget* parent)
     setupConfigWatch();
 
     m_blinkTimer = new QTimer(this);
-    m_blinkTimer->setInterval(530);   // typical terminal blink half-period
+    m_blinkTimer->setInterval(std::max(100, m_config.cursorBlinkInterval()));
     connect(m_blinkTimer, &QTimer::timeout, this, [this]() {
         m_blinkOn = !m_blinkOn;
         update();
@@ -522,7 +522,10 @@ void TerminalWidget::mouseReleaseEvent(QMouseEvent* e) {
     if (reportMouse(e, qtButtonCode(e->button()), false, false)) return;
     if (e->button() != Qt::LeftButton) return;
     m_selecting = false;
-    if (m_hasSelection) copySelectionToPrimary();
+    if (m_hasSelection) {
+        copySelectionToPrimary();
+        if (m_config.copyOnSelect()) copySelectionToClipboard();
+    }
 }
 
 void TerminalWidget::mouseDoubleClickEvent(QMouseEvent* e) {
@@ -533,8 +536,10 @@ void TerminalWidget::mouseDoubleClickEvent(QMouseEvent* e) {
     int row = sp.absRow - ((long long)m_terminal.grid().absScroll() - m_viewportOffset);
     if (row < 0 || row >= m_terminal.grid().rowCount()) return;
     const auto& cells = m_terminal.grid().rows()[row];
-    auto isWord = [](uint32_t cp) {
-        return cp > ' ' && cp != 0x7f;
+    const std::string& seps = m_config.wordSeparators();
+    auto isWord = [&seps](uint32_t cp) {
+        if (cp <= ' ' || cp == 0x7f) return false;
+        return cp > 0x7f || seps.find((char)cp) == std::string::npos;
     };
     int a = sp.col, b = sp.col;
     while (a > 0 && isWord(cells[a - 1].ch)) --a;
@@ -543,6 +548,7 @@ void TerminalWidget::mouseDoubleClickEvent(QMouseEvent* e) {
     m_selFocus  = { sp.absRow, b };
     m_hasSelection = true;
     copySelectionToPrimary();
+    if (m_config.copyOnSelect()) copySelectionToClipboard();
     update();
 }
 
@@ -570,7 +576,7 @@ void TerminalWidget::wheelEvent(QWheelEvent* e) {
         }
     }
 
-    int delta = notches * 3;
+    int delta = notches * std::max(1, m_config.scrollLines());
 
     int newOffset = m_viewportOffset + delta;
     int maxBack   = m_terminal.grid().historyLines();
@@ -754,6 +760,7 @@ void TerminalWidget::reloadConfig() {
         add(m_config.themePath());
     }
 
+    if (m_blinkTimer) m_blinkTimer->setInterval(std::max(100, m_config.cursorBlinkInterval()));
     setCursorBlink(m_config.cursorBlink());
     m_terminal.setReportColors(m_renderer->defaultFg().rgba(),
                                m_renderer->defaultBg().rgba(),

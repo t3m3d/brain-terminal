@@ -129,9 +129,12 @@ void TerminalWindow::hookTabSignals(TerminalWidget* w, int tabIndex) {
         if (m_tabs->currentWidget() == w) updateWindowTitleFromActive();
     });
     connect(w, &TerminalWidget::bellRang, this, [this, w]() {
+        const std::string& mode = m_config.bell();   // urgent | audible | none
+        if (mode == "none") return;
         // Alert the window only if the bell came from the active tab.
         if (m_tabs->currentWidget() == w) {
-            QApplication::alert(this, 400);
+            if (mode == "audible") QApplication::beep();
+            else                   QApplication::alert(this, 400);   // "urgent" (default)
         } else {
             // For background tabs, mark the tab strip so the user notices.
             int idx = m_tabs->indexOf(w);

@@ -189,6 +189,19 @@ Config Config::load(const std::string& path) {
             for (char& ch : v) ch = (char)tolower((unsigned char)ch);
             c.m_cursorBlink = (v == "yes" || v == "on" || v == "true" || v == "1");
         }
+        else if (key == "cursor_blink_interval") c.m_cursorBlinkInterval = to_int(val, c.m_cursorBlinkInterval);
+        else if (key == "scroll_lines")    c.m_scrollLines     = to_int(val, c.m_scrollLines);
+        else if (key == "bell") {
+            std::string v = val;
+            for (char& ch : v) ch = (char)tolower((unsigned char)ch);
+            c.m_bell = v;
+        }
+        else if (key == "word_separators") c.m_wordSeparators  = val;
+        else if (key == "copy_on_select") {
+            std::string v = val;
+            for (char& ch : v) ch = (char)tolower((unsigned char)ch);
+            c.m_copyOnSelect = (v == "yes" || v == "on" || v == "true" || v == "1");
+        }
         else if (key == "startup_command") c.m_startupCommand  = val;
         else if (key == "tabs")            c.m_tabsMode        = val;
         else if (key == "foreground")      c.m_foreground      = parseColor(val);

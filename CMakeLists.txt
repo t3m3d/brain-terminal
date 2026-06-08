@@ -39,10 +39,6 @@ qt_add_executable(brain ${SOURCES} ${HEADERS}
 # Include directories (modern style)
 target_include_directories(brain PRIVATE
     ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/include/collect
-    ${PROJECT_SOURCE_DIR}/include/render
-    ${PROJECT_SOURCE_DIR}/include/platform
-    ${PROJECT_SOURCE_DIR}/include/utils
     ${PROJECT_SOURCE_DIR}/include/branding
 )
 

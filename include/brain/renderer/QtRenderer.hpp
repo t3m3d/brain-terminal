@@ -15,11 +15,6 @@ class QtRenderer {
 public:
     QtRenderer(const QFont& font, int cellWidth, int cellHeight);
 
-    // Legacy entry point. Renders the live grid (no scrollback view, no
-    // selection overlay). cursorVisible reflects DECSET ?25; the renderer
-    // also gets it directly via renderWithView.
-    void render(QPainter& painter, const Grid& grid, bool cursorVisible = true);
-
     // Full render: viewport offset (0 = live tail, N = N rows above tail),
     // optional selection rectangle in ABSOLUTE coordinates, and a cursor
     // hint. Pass nullptr for any of the four selection coords to skip the
@@ -81,7 +76,6 @@ private:
     std::array<uint32_t, 16> m_themePalette{};   // theme ANSI palette (0xAARRGGBB)
     std::array<bool, 16>     m_themePaletteSet{};
 
-    void drawCell(QPainter& painter, int row, int col, const Cell& cell, bool selected);
     // Draw an underline of the given UnderlineStyle across one cell width.
     void drawUnderline(QPainter& painter, int x, int y, int w, int style, const QColor& col);
 };

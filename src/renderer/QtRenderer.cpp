@@ -46,13 +46,6 @@ void QtRenderer::loadTheme(const std::string& path) {
     }
 }
 
-// Legacy entry point — kept for tests and code that hasn't moved to
-// renderWithView yet. Renders the live tail with no scrollback view and
-// no selection.
-void QtRenderer::render(QPainter& painter, const Grid& grid, bool cursorVisible) {
-    renderWithView(painter, grid, 0, nullptr, nullptr, nullptr, nullptr,
-                   /*focused=*/true, cursorVisible);
-}
 
 static void normalizeSel(long long ar, int ac, long long fr, int fc,
                          long long& tr, int& tc, long long& br, int& bc) {
@@ -277,57 +270,3 @@ void QtRenderer::drawUnderline(QPainter& painter, int x, int y, int w, int style
     }
 }
 
-void QtRenderer::drawCell(QPainter& painter, int row, int col, const Cell& cell, bool selected) {
-    int x = m_padX + col * m_cellWidth;
-    int y = m_padY + row * m_cellHeight;
-
-    QColor bg = ((cell.bg >> 24) == 0) ? m_defaultBg : QColor::fromRgba(cell.bg);
-    QColor fg = ((cell.fg >> 24) == 0) ? m_defaultFg : QColor::fromRgba(cell.fg);
-    if (cell.attrs & ATTR_INVERSE) std::swap(fg, bg);
-    if (cell.attrs & ATTR_DIM)     fg = fg.darker(160);   // SGR 2 faint
-
-    // Skip filling cells that match the default background so the window
-    // opacity setting (transparent bg) doesn't double-alpha. Re-fill if
-    // the selection wants to cover this cell.
-    if (bg != m_defaultBg)
-        painter.fillRect(x, y, m_cellWidth, m_cellHeight, bg);
-    if (selected)
-        painter.fillRect(x, y, m_cellWidth, m_cellHeight, m_selBg);
-
-    if (cell.ch != 0 && cell.ch != ' ') {
-        // Bold synthesis is a no-op when the base font is already DemiBold+
-        // (Qt picks an already-bold variant when the family has no Regular
-        // weight installed — perma-bold rendering is then re-bolded by
-        // SGR 1 into illegibly-thick glyphs). Disable when use_bold = no
-        // OR when the base weight already qualifies as bold.
-        bool wantBold = m_useBold
-                     && (cell.attrs & ATTR_BOLD)
-                     && (m_font.weight() < QFont::DemiBold);
-        if (wantBold || (cell.attrs & (ATTR_ITALIC | ATTR_UNDERLINE | ATTR_STRIKE))) {
-            QFont f = m_font;
-            if (wantBold)                    f.setBold(true);
-            if (cell.attrs & ATTR_ITALIC)    f.setItalic(true);
-            if (cell.attrs & ATTR_UNDERLINE) f.setUnderline(true);
-            if (cell.attrs & ATTR_STRIKE)    f.setStrikeOut(true);
-            painter.setFont(f);
-        } else {
-            painter.setFont(m_font);
-        }
-        painter.setPen(fg);
-        char32_t cp = cell.ch;
-        painter.drawText(x, y + m_ascent,
-                         QString::fromUcs4(reinterpret_cast<const char32_t*>(&cp), 1));
-
-        // OSC 8 link underline is rendered here in addition to ATTR_UNDERLINE
-        // so users can tell which text is clickable even when no SGR mark
-        // was applied.
-        if (cell.link != 0 && !(cell.attrs & ATTR_UNDERLINE)) {
-            int uy = y + m_ascent + 2;
-            if (uy > y + m_cellHeight - 1) uy = y + m_cellHeight - 1;
-            painter.drawLine(x, uy, x + m_cellWidth, uy);
-        }
-    } else if ((cell.attrs & ATTR_UNDERLINE) || cell.link != 0) {
-        painter.setPen(fg);
-        painter.drawLine(x, y + m_ascent + 1, x + m_cellWidth, y + m_ascent + 1);
-    }
-}

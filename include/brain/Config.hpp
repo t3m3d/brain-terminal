@@ -24,6 +24,11 @@ public:
     int                opacityPercent() const { return m_opacityPercent; }
     const std::string& cursorStyle()    const { return m_cursorStyle; }
     bool               cursorBlink()    const { return m_cursorBlink; }
+    int                cursorBlinkInterval() const { return m_cursorBlinkInterval; }
+    int                scrollLines()    const { return m_scrollLines; }
+    const std::string& bell()           const { return m_bell; }
+    const std::string& wordSeparators() const { return m_wordSeparators; }
+    bool               copyOnSelect()   const { return m_copyOnSelect; }
     const std::string& startupCommand() const { return m_startupCommand; }
 
     // "auto" | "on" | "off". auto = tabs everywhere except tiling WMs.
@@ -56,6 +61,11 @@ private:
     int         m_opacityPercent = 100;
     std::string m_cursorStyle    = "block";    // block | underline | bar
     bool        m_cursorBlink    = false;       // blink the cursor
+    int         m_cursorBlinkInterval = 530;    // blink half-period in ms
+    int         m_scrollLines    = 3;           // lines per wheel notch
+    std::string m_bell           = "urgent";    // urgent | audible | none
+    std::string m_wordSeparators = "";          // extra chars that break a word-select
+    bool        m_copyOnSelect   = false;        // also copy selection to the clipboard
     std::string m_startupCommand = "";         // command sent to shell after spawn
     std::string m_tabsMode       = "auto";     // auto | on | off
 
