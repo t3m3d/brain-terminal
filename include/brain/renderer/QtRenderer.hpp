@@ -58,6 +58,7 @@ public:
     void setSelectionColors(QColor bg, QColor fg) { m_selBg = bg; m_selFg = fg; }
     QColor defaultFg() const           { return m_defaultFg; }
     QColor defaultBg() const           { return m_defaultBg; }
+    QColor cursorColor() const         { return m_cursorColorSet ? m_cursorColor : m_defaultFg; }
 
 private:
     QFont m_font;

@@ -5,6 +5,36 @@
 
 using namespace brain::core;
 
+namespace {
+// Parse an X11 colour spec for OSC 4/10/11: "#RRGGBB" or "rgb:R../G../B..".
+bool parseXColor(const std::string& s, int& r, int& g, int& b) {
+    auto hex = [](const std::string& h) -> long {
+        try { return std::stol(h, nullptr, 16); } catch (...) { return -1; }
+    };
+    if (!s.empty() && s[0] == '#') {
+        std::string h = s.substr(1);
+        if (h.size() != 6) return false;
+        r = (int)hex(h.substr(0, 2)); g = (int)hex(h.substr(2, 2)); b = (int)hex(h.substr(4, 2));
+        return r >= 0 && g >= 0 && b >= 0;
+    }
+    if (s.rfind("rgb:", 0) == 0) {
+        std::string body = s.substr(4);
+        size_t a = body.find('/'), z = body.rfind('/');
+        if (a == std::string::npos || z == a) return false;
+        auto comp = [&](const std::string& c) -> int {
+            long v = hex(c); if (v < 0) return -1;
+            switch (c.size()) { case 1: return (int)v * 17; case 2: return (int)v;
+                                case 3: return (int)(v >> 4); default: return (int)(v >> 8); }
+        };
+        r = comp(body.substr(0, a));
+        g = comp(body.substr(a + 1, z - a - 1));
+        b = comp(body.substr(z + 1));
+        return r >= 0 && g >= 0 && b >= 0;
+    }
+    return false;
+}
+} // namespace
+
 Terminal::Terminal(int cols, int rows)
     : m_cols(cols),
       m_rows(rows),
@@ -445,6 +475,39 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
                     decoded += path[i];
                 }
                 if (!decoded.empty()) m_cwd = decoded;
+                break;
+            }
+
+            // OSC 10/11/12 — query (or set) default fg / bg / cursor colour.
+            // The "?" form is a query; modern CLIs read OSC 11 to pick a light
+            // or dark theme. Reply as rgb:RRRR/GGGG/BBBB (xterm format).
+            if ((s.rfind("10;", 0) == 0 || s.rfind("11;", 0) == 0 || s.rfind("12;", 0) == 0)) {
+                int which = std::stoi(s.substr(0, 2));
+                std::string arg = s.substr(3);
+                if (arg == "?" && m_responseCallback) {
+                    uint32_t c = (which == 10) ? m_reportFg : (which == 11) ? m_reportBg : m_reportCursor;
+                    int r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, b = c & 0xFF;
+                    char buf[64];
+                    std::snprintf(buf, sizeof buf, "\x1b]%d;rgb:%02x%02x/%02x%02x/%02x%02x\x1b\\",
+                                  which, r, r, g, g, b, b);
+                    m_responseCallback(buf);
+                }
+                break;
+            }
+
+            // OSC 4 — set/query a palette colour: 4;<index>;<spec|?>
+            if (s.rfind("4;", 0) == 0) {
+                size_t semi = s.find(';', 2);
+                if (semi != std::string::npos) {
+                    int idx = -1;
+                    try { idx = std::stoi(s.substr(2, semi - 2)); } catch (...) {}
+                    std::string spec = s.substr(semi + 1);
+                    if (idx >= 0 && idx < 256 && spec != "?") {
+                        int r, g, b;
+                        if (parseXColor(spec, r, g, b))
+                            m_grid.setPaletteColor(idx, 0xFF000000u | (r << 16) | (g << 8) | b);
+                    }
+                }
                 break;
             }
 

@@ -116,8 +116,26 @@ int main() {
     bool okFocus = on1004 && off1004;
     std::cout << "DEC 1004 focus reporting toggles: " << (okFocus ? "yes" : "NO") << "\n";
 
+    // OSC 11 background query → rgb reply (light/dark detection by delta/bat/nvim).
+    std::string oscReply;
+    Terminal t13(20, 3);
+    t13.setReportColors(0xFFC0CAF5, 0xFF1A1B26, 0xFFC0CAF5);
+    t13.setResponseCallback([&](const std::string& s){ oscReply += s; });
+    auto feedD = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t13.onPTYOutput(v); };
+    feedD("\x1b]11;?\x1b\\");
+    bool okOscQ = (oscReply == "\x1b]11;rgb:1a1a/1b1b/2626\x1b\\");
+    std::cout << "OSC 11 bg query reply: " << (okOscQ ? "yes" : "NO") << " [" << oscReply.substr(oscReply.size()>2?2:0) << "]\n";
+
+    // OSC 4 palette set: 4;1;#ff0000 recolours ANSI red, visible via SGR 31.
+    Terminal t14(20, 3);
+    auto feedE = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t14.onPTYOutput(v); };
+    feedE("\x1b]4;1;#ff0000\x1b\\\x1b[31mR");
+    bool okOsc4 = (t14.grid().rows()[0][0].fg == 0xFFFF0000);
+    std::cout << "OSC 4 palette set (red): " << (okOsc4 ? "yes" : "NO") << "\n";
+
     bool all = ok18 && ok14 && okCHA && okCursor && okStrike && okDim
-            && okClip && okCwd && okWide && okSixel && okDA && okUl && okUlColor && okFocus;
+            && okClip && okCwd && okWide && okSixel && okDA && okUl && okUlColor && okFocus
+            && okOscQ && okOsc4;
     std::cout << (all ? "PASS\n" : "FAIL\n");
     return all ? 0 : 1;
 }

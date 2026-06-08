@@ -42,6 +42,13 @@ public:
     // Most-recent working directory reported by the shell via OSC 7, or empty.
     const std::string& cwd() const { return m_cwd; }
 
+    // Current default fg/bg/cursor (0xAARRGGBB) so OSC 10/11/12 *queries* can be
+    // answered — modern CLIs read OSC 11 to detect a light vs dark background.
+    // The widget keeps these in sync with the theme/config.
+    void setReportColors(uint32_t fg, uint32_t bg, uint32_t cursor) {
+        m_reportFg = fg; m_reportBg = bg; m_reportCursor = cursor;
+    }
+
     // Inline images (Sixel), anchored to absolute lines so they scroll with
     // the text. The renderer blits these after the cell grid.
     const std::vector<renderer::TermImage>& images() const { return m_images; }
@@ -165,6 +172,7 @@ private:
     CursorStyleCallback m_cursorStyleCallback;
     ClipboardCallback   m_clipboardCallback;
     std::string m_cwd;   // OSC 7 reported working directory
+    uint32_t m_reportFg = 0xFFDCDCDC, m_reportBg = 0xFF0C0C0C, m_reportCursor = 0xFFDCDCDC;
     std::vector<renderer::TermImage> m_images;   // Sixel inline images
     void placeImage(int wpx, int hpx, std::vector<uint32_t>&& argb);
     int m_cellPxW = 8;    // cell pixel size, for CSI 14t replies

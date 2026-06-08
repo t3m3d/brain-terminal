@@ -233,6 +233,9 @@ void TerminalWidget::setupRenderer() {
         bg.setAlpha(op * 255 / 100);
         m_renderer->setDefaultBg(bg);
     }
+    m_terminal.setReportColors(m_renderer->defaultFg().rgba(),
+                               m_renderer->defaultBg().rgba(),
+                               m_renderer->cursorColor().rgba());
 }
 
 // ---------------------------------------------------------------------------
@@ -715,6 +718,9 @@ void TerminalWidget::reloadConfig() {
     }
 
     setCursorBlink(m_config.cursorBlink());
+    m_terminal.setReportColors(m_renderer->defaultFg().rgba(),
+                               m_renderer->defaultBg().rgba(),
+                               m_renderer->cursorColor().rgba());
 
     resizeEvent(nullptr);
     m_terminal.setCellPixels(m_cellWidth, m_cellHeight);
