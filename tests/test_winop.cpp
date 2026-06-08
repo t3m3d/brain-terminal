@@ -58,7 +58,20 @@ int main() {
     bool okCwd = (t6.cwd() == "/home/me/a b");
     std::cout << "OSC 7 cwd (percent-decoded): " << (okCwd ? "yes" : "NO") << "\n";
 
-    bool all = ok18 && ok14 && okCHA && okCursor && okStrike && okDim && okClip && okCwd;
+    // Wide characters: a CJK glyph occupies two columns (glyph + spacer),
+    // ASCII after it stays aligned, and copy skips the spacer.
+    Terminal t7(20, 3);
+    auto feed7 = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t7.onPTYOutput(v); };
+    feed7("\xE4\xB8\x80""X");          // U+4E00 (一, wide) then 'X'
+    const auto& r0 = t7.grid().rows()[0];
+    bool okWide = (r0[0].ch == 0x4E00)   // wide glyph in col 0
+               && (r0[1].ch == 0)         // continuation spacer in col 1
+               && (r0[2].ch == 'X');      // ASCII lands in col 2, not col 1
+    std::cout << "Wide CJK occupies 2 cols (一X -> [0]=U+4E00 [1]=spacer [2]=X): "
+              << (okWide ? "yes" : "NO") << "\n";
+
+    bool all = ok18 && ok14 && okCHA && okCursor && okStrike && okDim
+            && okClip && okCwd && okWide;
     std::cout << (all ? "PASS\n" : "FAIL\n");
     return all ? 0 : 1;
 }

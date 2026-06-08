@@ -564,7 +564,7 @@ QString TerminalWidget::selectionText() const {
 
         for (int c = startC; c <= lastNonBlank; ++c) {
             uint32_t cp = (*row)[c].ch;
-            if (cp == 0) cp = ' ';
+            if (cp == 0) continue;   // wide-char continuation cell: skip, don't double-space
             out += QString::fromUcs4(reinterpret_cast<const char32_t*>(&cp), 1);
         }
         if (r != b.absRow) out += '\n';

@@ -1,4 +1,5 @@
 #include "brain/renderer/Grid.hpp"
+#include "brain/renderer/CharWidth.hpp"
 #include <algorithm>
 
 using namespace brain::renderer;
@@ -195,6 +196,16 @@ void Grid::putCodepoint(uint32_t cp) {
         m_wrapPending = false;
     }
 
+    int w = charWidth(cp);
+    if (w == 0) return;   // combining mark / zero-width: drop, keep alignment
+
+    // A double-width glyph can't straddle the right edge — wrap to the next
+    // line first, leaving the final column blank (standard VT behaviour).
+    if (w == 2 && m_cursorCol == m_cols - 1) {
+        m_cursorCol = 0;
+        lineFeed();
+    }
+
     if (m_cursorRow < m_rows && m_cursorCol < m_cols) {
         Cell& cell = m_cells[m_cursorRow][m_cursorCol];
         cell.ch = cp;
@@ -202,11 +213,22 @@ void Grid::putCodepoint(uint32_t cp) {
         cell.bg = m_currentBG;
         cell.attrs = m_currentAttrs;
         cell.link = m_currentLink;
+        // Wide glyph: park a continuation cell (ch = 0) in the next column. The
+        // renderer draws nothing for it and the wide glyph from this cell
+        // overflows into it; copying skips ch == 0 so no stray NUL is emitted.
+        if (w == 2 && m_cursorCol + 1 < m_cols) {
+            Cell& sp = m_cells[m_cursorRow][m_cursorCol + 1];
+            sp.ch = 0;
+            sp.fg = m_currentFG;
+            sp.bg = m_currentBG;
+            sp.attrs = m_currentAttrs;
+            sp.link = m_currentLink;
+        }
         m_generation++;
     }
 
-    if (m_cursorCol + 1 >= m_cols) m_wrapPending = true;  // park in last column
-    else                          m_cursorCol++;
+    if (m_cursorCol + w >= m_cols) m_wrapPending = true;   // park at right edge
+    else                          m_cursorCol += w;
 }
 
 void Grid::cursorUp(int n) {
