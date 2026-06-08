@@ -494,6 +494,13 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
                     std::snprintf(buf, sizeof buf, "\x1b]%d;rgb:%02x%02x/%02x%02x/%02x%02x\x1b\\",
                                   which, r, r, g, g, b, b);
                     m_responseCallback(buf);
+                } else if (arg != "?") {
+                    int r, g, b;
+                    if (parseXColor(arg, r, g, b)) {
+                        uint32_t c = 0xFF000000u | (r << 16) | (g << 8) | b;
+                        if (which == 10) m_reportFg = c; else if (which == 11) m_reportBg = c; else m_reportCursor = c;
+                        if (m_colorCallback) m_colorCallback(which, c);
+                    }
                 }
                 break;
             }

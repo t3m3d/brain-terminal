@@ -152,9 +152,20 @@ int main() {
     std::cout << "Reflow widen->unwrap / narrow->rewrap: " << (okReflow ? "yes" : "NO")
               << " [w20:'" << rowStr(0,20) << "']\n";
 
+    // OSC 11 SET then query reflects the new background.
+    Terminal t16(20, 3);
+    std::string rep2;
+    t16.setReportColors(0xFFC0CAF5, 0xFF1A1B26, 0xFFC0CAF5);
+    t16.setResponseCallback([&](const std::string& s){ rep2 += s; });
+    auto feedG = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t16.onPTYOutput(v); };
+    feedG("\x1b]11;#0000ff\x1b\\");   // set bg blue
+    feedG("\x1b]11;?\x1b\\");          // query it back
+    bool okOscSet = (rep2 == "\x1b]11;rgb:0000/0000/ffff\x1b\\");
+    std::cout << "OSC 11 set then query: " << (okOscSet ? "yes" : "NO") << "\n";
+
     bool all = ok18 && ok14 && okCHA && okCursor && okStrike && okDim
             && okClip && okCwd && okWide && okSixel && okDA && okUl && okUlColor && okFocus
-            && okOscQ && okOsc4 && okReflow;
+            && okOscQ && okOsc4 && okReflow && okOscSet;
     std::cout << (all ? "PASS\n" : "FAIL\n");
     return all ? 0 : 1;
 }

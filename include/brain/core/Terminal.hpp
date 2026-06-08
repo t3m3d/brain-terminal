@@ -33,11 +33,14 @@ public:
     using CursorStyleCallback = std::function<void(const std::string&, bool)>;
     // OSC 52 clipboard write; arg is the base64 payload the app sent.
     using ClipboardCallback = std::function<void(const std::string&)>;
+    // OSC 10/11/12 set default fg/bg/cursor: which is 10|11|12, colour 0xAARRGGBB.
+    using ColorCallback = std::function<void(int which, uint32_t argb)>;
     void setTitleCallback   (TitleCallback    cb) { m_titleCallback    = std::move(cb); }
     void setBellCallback    (BellCallback     cb) { m_bellCallback     = std::move(cb); }
     void setResponseCallback(ResponseCallback cb) { m_responseCallback = std::move(cb); }
     void setCursorStyleCallback(CursorStyleCallback cb) { m_cursorStyleCallback = std::move(cb); }
     void setClipboardCallback(ClipboardCallback cb) { m_clipboardCallback = std::move(cb); }
+    void setColorCallback(ColorCallback cb) { m_colorCallback = std::move(cb); }
 
     // Most-recent working directory reported by the shell via OSC 7, or empty.
     const std::string& cwd() const { return m_cwd; }
@@ -171,6 +174,7 @@ private:
     ResponseCallback m_responseCallback;
     CursorStyleCallback m_cursorStyleCallback;
     ClipboardCallback   m_clipboardCallback;
+    ColorCallback       m_colorCallback;
     std::string m_cwd;   // OSC 7 reported working directory
     uint32_t m_reportFg = 0xFFDCDCDC, m_reportBg = 0xFF0C0C0C, m_reportCursor = 0xFFDCDCDC;
     std::vector<renderer::TermImage> m_images;   // Sixel inline images

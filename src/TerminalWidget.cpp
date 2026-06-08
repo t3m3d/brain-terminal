@@ -103,6 +103,15 @@ void TerminalWidget::hookTerminalSignals() {
         if (auto* cb = QApplication::clipboard())
             cb->setText(QString::fromUtf8(decoded));
     });
+    // OSC 10/11/12 set: app changed the default fg / bg / cursor colour.
+    m_terminal.setColorCallback([this](int which, uint32_t argb) {
+        if (!m_renderer) return;
+        QColor c = QColor::fromRgba(argb);
+        if (which == 10)      m_renderer->setDefaultFg(c);
+        else if (which == 11) m_renderer->setDefaultBg(c);
+        else                  m_renderer->setCursorColor(c);
+        update();
+    });
 }
 
 // ---------------------------------------------------------------------------
