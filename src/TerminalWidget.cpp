@@ -74,6 +74,11 @@ void TerminalWidget::hookTerminalSignals() {
         // the window can listen for bellRang() and flash the chrome.
         update();
     });
+    // DECSCUSR: apps (vim/neovim) switch cursor shape per mode.
+    m_terminal.setCursorStyleCallback([this](const std::string& s) {
+        if (m_renderer) m_renderer->setCursorStyle(s);
+        update();
+    });
 }
 
 // ---------------------------------------------------------------------------

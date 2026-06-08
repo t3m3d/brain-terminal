@@ -159,14 +159,16 @@ void QtRenderer::renderWithView(
             QColor bg = ((cell.bg >> 24) == 0) ? m_defaultBg : QColor::fromRgba(cell.bg);
             QColor fg = ((cell.fg >> 24) == 0) ? m_defaultFg : QColor::fromRgba(cell.fg);
             if (cell.attrs & ATTR_INVERSE) std::swap(fg, bg);
+            if (cell.attrs & ATTR_DIM)     fg = fg.darker(160);   // SGR 2 faint
 
             bool wantBold = m_useBold && (cell.attrs & ATTR_BOLD)
                          && (m_font.weight() < QFont::DemiBold);
-            if (wantBold || (cell.attrs & (ATTR_ITALIC | ATTR_UNDERLINE))) {
+            if (wantBold || (cell.attrs & (ATTR_ITALIC | ATTR_UNDERLINE | ATTR_STRIKE))) {
                 QFont f = m_font;
                 if (wantBold)                    f.setBold(true);
                 if (cell.attrs & ATTR_ITALIC)    f.setItalic(true);
                 if (cell.attrs & ATTR_UNDERLINE) f.setUnderline(true);
+                if (cell.attrs & ATTR_STRIKE)    f.setStrikeOut(true);
                 painter.setFont(f);
             } else {
                 painter.setFont(m_font);

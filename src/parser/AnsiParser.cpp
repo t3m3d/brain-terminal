@@ -226,6 +226,17 @@ EscapeSequence AnsiParser::parseCSI(const std::string& seq) {
         // The terminal must reply over the PTY (handled in Terminal).
         case 't': esc.type = EscapeType::WindowOp;  esc.value = p(0, 0); break;
 
+        // DECSCUSR — cursor shape: CSI Ps SP q (space intermediate before 'q').
+        // Other 'q' finals (DECLL CSI Ps q, DECSCA CSI Ps " q) are not this.
+        case 'q':
+            if (seq.size() >= 3 && seq[seq.size() - 2] == ' ') {
+                esc.type  = EscapeType::SetCursorStyle;
+                esc.value = p(0, 0);
+            } else {
+                esc.type = EscapeType::Unknown;
+            }
+            break;
+
         default:
             esc.type = EscapeType::Unknown;
             break;

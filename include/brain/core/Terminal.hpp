@@ -28,9 +28,12 @@ public:
     using TitleCallback    = std::function<void(const std::string&)>;
     using BellCallback     = std::function<void()>;
     using ResponseCallback = std::function<void(const std::string&)>;
+    // DECSCUSR cursor-shape change; arg is "block" | "underline" | "bar".
+    using CursorStyleCallback = std::function<void(const std::string&)>;
     void setTitleCallback   (TitleCallback    cb) { m_titleCallback    = std::move(cb); }
     void setBellCallback    (BellCallback     cb) { m_bellCallback     = std::move(cb); }
     void setResponseCallback(ResponseCallback cb) { m_responseCallback = std::move(cb); }
+    void setCursorStyleCallback(CursorStyleCallback cb) { m_cursorStyleCallback = std::move(cb); }
 
     // Cell size in pixels, so CSI 14t (report size in pixels) can be answered.
     void setCellPixels(int w, int h) { m_cellPxW = w; m_cellPxH = h; }
@@ -144,6 +147,7 @@ private:
     TitleCallback    m_titleCallback;
     BellCallback     m_bellCallback;
     ResponseCallback m_responseCallback;
+    CursorStyleCallback m_cursorStyleCallback;
     int m_cellPxW = 8;    // cell pixel size, for CSI 14t replies
     int m_cellPxH = 16;
 

@@ -154,6 +154,14 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
             m_grid.setCursor(std::max(0, seq.value - 1), m_grid.cursorCol());
             break;
 
+        case EscapeType::SetCursorStyle:   // DECSCUSR: vim insert-mode bar, etc.
+            if (m_cursorStyleCallback) {
+                const char* style = (seq.value <= 2) ? "block"
+                                  : (seq.value <= 4) ? "underline" : "bar";
+                m_cursorStyleCallback(style);
+            }
+            break;
+
         case EscapeType::ClearScreen:
             // ESC[J: 0/none = cursor->end, 1 = start->cursor, 2/3 = all.
             if (seq.value >= 2) {

@@ -23,6 +23,26 @@ int main() {
     bool okCHA = (t2.grid().rows()[0][0].ch == 'X' && t2.grid().rows()[0][1].ch == 'b');
     std::cout << "CHA (ESC[1G) repositions: " << (okCHA ? "yes" : "NO") << "\n";
 
-    std::cout << (ok18 && ok14 ? "PASS\n" : "FAIL\n");
-    return (ok18 && ok14 && okCHA) ? 0 : 1;
+    // DECSCUSR (CSI Ps SP q): vim insert-mode bar, etc.
+    std::string cstyle;
+    Terminal t3(20, 5);
+    t3.setCursorStyleCallback([&](const std::string& s){ cstyle = s; });
+    auto feed3 = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t3.onPTYOutput(v); };
+    feed3("\x1b[5 q"); bool okBar   = (cstyle == "bar");
+    feed3("\x1b[2 q"); bool okBlock = (cstyle == "block");
+    feed3("\x1b[4 q"); bool okUnder = (cstyle == "underline");
+    bool okCursor = okBar && okBlock && okUnder;
+    std::cout << "DECSCUSR 5/2/4 -> bar/block/underline: " << (okCursor ? "yes" : "NO") << "\n";
+
+    // SGR 9 strikethrough + SGR 2 dim land on the right cells.
+    Terminal t4(20, 5);
+    auto feed4 = [&](const std::string& s){ std::vector<char> v(s.begin(), s.end()); t4.onPTYOutput(v); };
+    feed4("\x1b[9mA\x1b[0m\x1b[2mB");
+    bool okStrike = (t4.grid().rows()[0][0].attrs & brain::renderer::ATTR_STRIKE) != 0;
+    bool okDim    = (t4.grid().rows()[0][1].attrs & brain::renderer::ATTR_DIM)    != 0;
+    std::cout << "SGR 9 strike / SGR 2 dim: " << ((okStrike && okDim) ? "yes" : "NO") << "\n";
+
+    bool all = ok18 && ok14 && okCHA && okCursor && okStrike && okDim;
+    std::cout << (all ? "PASS\n" : "FAIL\n");
+    return all ? 0 : 1;
 }
