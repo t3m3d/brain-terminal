@@ -305,13 +305,16 @@ void Terminal::applyEscape(const parser::EscapeSequence& seq) {
                 int code = ps[i];
                 if      (code == 0)  m_grid.resetAttributes();
                 else if (code == 1)  m_grid.enableAttr(renderer::ATTR_BOLD);
+                else if (code == 2)  m_grid.enableAttr(renderer::ATTR_DIM);
                 else if (code == 3)  m_grid.enableAttr(renderer::ATTR_ITALIC);
                 else if (code == 4)  m_grid.enableAttr(renderer::ATTR_UNDERLINE);
                 else if (code == 7)  m_grid.enableAttr(renderer::ATTR_INVERSE);
-                else if (code == 22) m_grid.disableAttr(renderer::ATTR_BOLD);
+                else if (code == 9)  m_grid.enableAttr(renderer::ATTR_STRIKE);
+                else if (code == 22) m_grid.disableAttr(renderer::ATTR_BOLD | renderer::ATTR_DIM);
                 else if (code == 23) m_grid.disableAttr(renderer::ATTR_ITALIC);
                 else if (code == 24) m_grid.disableAttr(renderer::ATTR_UNDERLINE);
                 else if (code == 27) m_grid.disableAttr(renderer::ATTR_INVERSE);
+                else if (code == 29) m_grid.disableAttr(renderer::ATTR_STRIKE);
                 else if (code >= 30 && code <= 37) m_grid.setFG16(code - 30);
                 else if (code == 38) {
                     if (i + 2 < ps.size() && ps[i+1] == 5) { m_grid.setFG256(ps[i+2]); i += 2; }

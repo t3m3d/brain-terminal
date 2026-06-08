@@ -9,6 +9,8 @@ enum CellAttr : uint8_t {
     ATTR_ITALIC    = 2,
     ATTR_UNDERLINE = 4,
     ATTR_INVERSE   = 8,
+    ATTR_STRIKE    = 16,   // SGR 9 / 29   crossed-out
+    ATTR_DIM       = 32,   // SGR 2 / 22   faint / reduced intensity
 };
 
 struct Cell {
