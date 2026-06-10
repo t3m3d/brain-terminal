@@ -1,4 +1,3 @@
-# Maintainer: Brian <brian@krypton-lang.org>
 pkgname=brain
 pkgver=0.1.0
 pkgrel=1
