@@ -1,27 +1,4 @@
 @echo off
-:: build_windows.bat - build brain-terminal (brain) on Windows.
-::
-:: Mirrors build_linux.sh. brain-terminal is a Qt6 / C++20 app; this
-:: script standardises the cmake invocation against the Visual Studio
-:: 2022 + Qt 6.8.x toolchain pair the project targets.
-::
-:: Usage:
-::    build_windows.bat               configure + build into .\build-windows
-::    build_windows.bat /run          ... then launch the built brain.exe
-::    build_windows.bat /clean        wipe build-windows first
-::    build_windows.bat /qt C:\Qt\6.8.0\msvc2022_64
-::                                    use a non-default Qt path
-::    build_windows.bat /h            this help
-::
-:: Prereqs:
-::   - Visual Studio 2022 with "Desktop development with C++" workload
-::   - Qt 6.x for MSVC 2022 64-bit (default: C:\Qt\6.8.0\msvc2022_64;
-::     auto-probes C:\Qt for newer/older versions if that exact path
-::     is missing)
-::   - CMake 3.21+ on PATH
-::
-:: Output:
-::    .\build-windows\Release\brain.exe
 
 setlocal EnableExtensions EnableDelayedExpansion
 
