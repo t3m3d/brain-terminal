@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# build_linux.sh — build brain on Linux (Arch / Debian / Ubuntu / WSL2).
-#
-# Usage:
-#   ./build_linux.sh                  configure + build into ./build-linux
-#   ./build_linux.sh --run            ... then launch ./build-linux/brain
-#   ./build_linux.sh --test           ... then build + run the ctest suite
-#   ./build_linux.sh --clean          wipe build-linux first
-#   ./build_linux.sh --install-desktop  install .desktop + hicolor icons into
-#                                     ~/.local/share (Wayland icon: Hyprland/sway)
-#
-# Prereqs:
-#   Arch:   sudo pacman -S --needed base-devel cmake qt6-base
-#   Debian: sudo apt install build-essential cmake qt6-base-dev libutil-dev
 
 set -euo pipefail
 
